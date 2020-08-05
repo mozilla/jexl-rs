@@ -1,0 +1,7 @@
+cargo-features = ["edition"]
+
+[workspace]
+members = [
+    "jexl-parser",
+    "jexl-eval",
+]

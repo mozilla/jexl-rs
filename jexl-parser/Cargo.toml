@@ -1,0 +1,15 @@
+cargo-features = ["edition"]
+
+[package]
+edition = '2018'
+name = "jexl-parser"
+version = "0.1.0"
+authors = ["Mike Cooper <mythmon@gmail.com>"]
+build = "build.rs"
+
+[dependencies]
+lalrpop-util = "^0.15.2"
+regex = "^0.2.11"
+
+[build-dependencies]
+lalrpop = "^0.15.2"
