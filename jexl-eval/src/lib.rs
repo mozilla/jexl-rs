@@ -1,11 +1,10 @@
-#![feature(rust_2018_preview)]
-#![feature(use_extern_macros)]
-
 use jexl_parser::{
     ast::{Expression, OpCode},
     ParseError, Parser, Token,
 };
 use serde_json::{json as value, Value};
+
+const EPSILON: f64 = 0.000001f64;
 
 #[derive(Debug, PartialEq)]
 pub enum EvaluationError<'a> {
@@ -60,21 +59,29 @@ impl Evaluator {
         Self {}
     }
 
-    pub fn eval(&self, input: &'a str) -> Result<Value, EvaluationError<'a>> {
+    pub fn eval<'a>(&self, input: &'a str) -> Result<Value, EvaluationError<'a>> {
         let context = value!({});
         self.eval_in_context(input, &context)
     }
 
-    pub fn eval_in_context(&self, input: &'a str, context: impl Into<&'b Context>) -> Result<Value, EvaluationError<'a>> {
+    pub fn eval_in_context<'a, 'b>(
+        &self,
+        input: &'a str,
+        context: impl Into<&'b Context>,
+    ) -> Result<Value, EvaluationError<'a>> {
         let tree = Parser::parse(input)?;
         let context = context.into();
-        if ! context.is_object() {
+        if !context.is_object() {
             return Err(EvaluationError::InvalidContext);
         }
         self.eval_ast(tree, context)
     }
 
-    fn eval_ast<'a>(&self, ast: Expression, context: &Context) -> Result<Value, EvaluationError<'a>> {
+    fn eval_ast<'a>(
+        &self,
+        ast: Expression,
+        context: &Context,
+    ) -> Result<Value, EvaluationError<'a>> {
         match ast {
             Expression::Number(n) => Ok(value!(n)),
             Expression::Boolean(b) => Ok(value!(b)),
@@ -85,16 +92,16 @@ impl Evaluator {
                 let mut map = serde_json::Map::with_capacity(items.len());
                 for (key, expr) in items.into_iter() {
                     if map.contains_key(&key) {
-                        return Err(EvaluationError::DuplicateObjectKey(key))
+                        return Err(EvaluationError::DuplicateObjectKey(key));
                     }
                     let value = self.eval_ast(*expr, context)?;
                     map.insert(key, value);
                 }
                 Ok(Value::Object(map))
-            },
+            }
 
             Expression::IdentifierSequence(exprs) => {
-                assert!(exprs.len() > 0);
+                assert!(!exprs.is_empty());
                 let mut rv: Option<&Value> = Some(context);
                 for expr in exprs.into_iter() {
                     let key = self.eval_ast(*expr, context)?;
@@ -107,10 +114,10 @@ impl Evaluator {
                     } else {
                         break;
                     }
-                };
+                }
 
                 Ok(rv.unwrap_or(&value!(null)).clone())
-            },
+            }
 
             Expression::BinaryOperation {
                 left,
@@ -138,14 +145,18 @@ impl Evaluator {
                             OpCode::Greater => value!(left > right),
                             OpCode::LessEqual => value!(left <= right),
                             OpCode::GreaterEqual => value!(left >= right),
-                            OpCode::Equal => value!(left == right),
-                            OpCode::NotEqual => value!(left != right),
+                            OpCode::Equal => value!((left - right).abs() < EPSILON),
+                            OpCode::NotEqual => value!((left - right).abs() > EPSILON),
                             OpCode::In => value!(false),
-                            OpCode::And | OpCode::Or => unreachable!("Covered by previous case in parent match"),
+                            OpCode::And | OpCode::Or => {
+                                unreachable!("Covered by previous case in parent match")
+                            }
                         })
                     }
 
-                    (OpCode::Add, Value::String(a), Value::String(b)) => Ok(value!(format!("{}{}", a, b))),
+                    (OpCode::Add, Value::String(a), Value::String(b)) => {
+                        Ok(value!(format!("{}{}", a, b)))
+                    }
                     (OpCode::In, Value::String(a), Value::String(b)) => Ok(value!(b.contains(&a))),
 
                     (operation, left, right) => Err(EvaluationError::InvalidBinaryOp {
@@ -203,7 +214,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_true_comparison() {
         let evaluator = Evaluator::new();
@@ -252,7 +262,10 @@ mod tests {
             }
         });
         let evaluator = Evaluator::new();
-        assert_eq!(evaluator.eval_in_context("foo.bar[.tek == 'baz']", &context), Ok(value!([{"tek": "baz"}])));
+        assert_eq!(
+            evaluator.eval_in_context("foo.bar[.tek == 'baz']", &context),
+            Ok(value!([{"tek": "baz"}]))
+        );
     }
 
     #[test]
@@ -267,7 +280,10 @@ mod tests {
             }
         });
         let evaluator = Evaluator::new();
-        assert_eq!(evaluator.eval_in_context("foo.bar[1].tek", &context), Ok(value!("baz")));
+        assert_eq!(
+            evaluator.eval_in_context("foo.bar[1].tek", &context),
+            Ok(value!("baz"))
+        );
     }
 
     #[test]
@@ -275,7 +291,10 @@ mod tests {
     fn test_object_expression_properties() {
         let context = value!({"foo": {"baz": {"bar": "tek"}}});
         let evaluator = Evaluator::new();
-        assert_eq!(evaluator.eval_in_context("foo['ba' + 'z']", &context), Ok(value!("tek")));
+        assert_eq!(
+            evaluator.eval_in_context("foo['ba' + 'z']", &context),
+            Ok(value!("tek"))
+        );
     }
 
     #[test]
@@ -303,14 +322,20 @@ mod tests {
     #[test]
     fn test_object_literal_strings() {
         let evaluator = Evaluator::new();
-        assert_eq!( evaluator.eval("{'foo': {'bar': 'tek'}}"), Ok(value!({"foo": {"bar": "tek"}})));
+        assert_eq!(
+            evaluator.eval("{'foo': {'bar': 'tek'}}"),
+            Ok(value!({"foo": {"bar": "tek"}}))
+        );
     }
 
     #[test]
     #[should_panic(expected = "assertion failed")]
     fn test_object_literal_identifiers() {
         let evaluator = Evaluator::new();
-        assert_eq!( evaluator.eval("{foo: {bar: 'tek'}}"), Ok(value!({"foo": {"bar": "tek"}})));
+        assert_eq!(
+            evaluator.eval("{foo: {bar: 'tek'}}"),
+            Ok(value!({"foo": {"bar": "tek"}}))
+        );
     }
 
     /*
@@ -371,8 +396,14 @@ mod tests {
     #[should_panic(expected = "assertion failed")]
     fn test_in_operator_array() {
         let evaluator = Evaluator::new();
-        assert_eq!( evaluator.eval("'bar' in ['foo', 'bar', 'tek']"), Ok(value!(true)));
-        assert_eq!( evaluator.eval("'baz' in ['foo', 'bar', 'tek']"), Ok(value!(false)));
+        assert_eq!(
+            evaluator.eval("'bar' in ['foo', 'bar', 'tek']"),
+            Ok(value!(true))
+        );
+        assert_eq!(
+            evaluator.eval("'baz' in ['foo', 'bar', 'tek']"),
+            Ok(value!(false))
+        );
     }
 
     #[test]

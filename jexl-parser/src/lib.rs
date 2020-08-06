@@ -1,9 +1,7 @@
-#![feature(rust_2018_preview)]
-
-extern crate lalrpop_util;
-
 pub mod ast;
-mod parser;
+mod parser {
+    include!(concat!(env!("OUT_DIR"), "/parser.rs"));
+}
 
 pub use lalrpop_util::ParseError;
 
