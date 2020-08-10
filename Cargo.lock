@@ -235,7 +235,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "jexl-eval"
 version = "0.1.0"
 dependencies = [
- "jexl-parser 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jexl-parser 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.70 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.30 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror 1.0.20 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -243,8 +243,7 @@ dependencies = [
 
 [[package]]
 name = "jexl-parser"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "0.1.1"
 dependencies = [
  "lalrpop 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lalrpop-util 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -254,6 +253,7 @@ dependencies = [
 [[package]]
 name = "jexl-parser"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "lalrpop 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lalrpop-util 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -631,7 +631,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum indexmap 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5b88cd59ee5f71fea89a62248fc8f387d44400cefe05ef548466d61ced9029a7"
 "checksum itertools 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
 "checksum itoa 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "1306f3464951f30e30d12373d31c79fbd52d236e5e896fd92f96ec7babbbe60b"
-"checksum jexl-parser 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7f4e6fff00104d2f5294767299d5b47b0b712d7dd1a9a8f7fb753b80ab4f58b8"
+"checksum jexl-parser 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "18425d84229ff68498da1621b37fe2ae6dd69c444120a1c6caee44382e0763f8"
 "checksum lalrpop 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d6f55673d283313791404be21209bb433f128f7e5c451986df107eb5fdbd68d2"
 "checksum lalrpop-util 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f7e88f15a7d31dfa8fb607986819039127f0161058a3b248a146142d276cbd28"
 "checksum lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
