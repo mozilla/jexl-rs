@@ -244,6 +244,7 @@ dependencies = [
 [[package]]
 name = "jexl-parser"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "lalrpop 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lalrpop-util 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -252,8 +253,7 @@ dependencies = [
 
 [[package]]
 name = "jexl-parser"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "0.1.1"
 dependencies = [
  "lalrpop 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lalrpop-util 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
