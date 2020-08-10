@@ -2,7 +2,10 @@
 edition = '2018'
 name = "jexl-eval"
 version = "0.1.0"
-authors = ["Mike Cooper <mythmon@gmail.com>"]
+authors = ["Mike Cooper <mythmon@gmail.com>", "The Sync Team <sync-team@mozilla.com>"]
+description = "A JEXL evaluator written in Rust"
+license = "MPL-2.0"
+repository = "https://github.com/mozilla/jexl-rs"
 
 [dependencies]
 jexl-parser = {path = "../jexl-parser"}

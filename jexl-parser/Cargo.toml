@@ -2,8 +2,11 @@
 edition = '2018'
 name = "jexl-parser"
 version = "0.1.0"
-authors = ["Mike Cooper <mythmon@gmail.com>"]
+authors = ["Mike Cooper <mythmon@gmail.com>", "The Sync Team <sync-team@mozilla.com>"]
 build = "build.rs"
+description = "A JEXL parser written in Rust"
+license = "MPL-2.0"
+repository = "https://github.com/mozilla/jexl-rs"
 
 [dependencies]
 lalrpop-util = "0.19"
