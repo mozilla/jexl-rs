@@ -233,7 +233,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "jexl-eval"
-version = "0.1.1"
+version = "0.1.2-alpha.0"
 dependencies = [
  "jexl-parser 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.70 (registry+https://github.com/rust-lang/crates.io-index)",
