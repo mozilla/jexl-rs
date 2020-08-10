@@ -7,3 +7,5 @@ authors = ["Mike Cooper <mythmon@gmail.com>"]
 [dependencies]
 jexl-parser = {path = "../jexl-parser"}
 serde_json = "1"
+serde = "1"
+thiserror = "1"
