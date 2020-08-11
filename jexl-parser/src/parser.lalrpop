@@ -32,6 +32,11 @@ Expr40: Box<Expression> = {
 };
 
 Expr50: Box<Expression> = {
+    <args: Expr50> "|" <name: Identifier> => Box::new(Expression::Transform{name, args}),
+    Expr60
+}
+
+Expr60: Box<Expression> = {
     Number => Box::new(Expression::Number(<>)),
     Boolean => Box::new(Expression::Boolean(<>)),
     String => Box::new(Expression::String(<>)),

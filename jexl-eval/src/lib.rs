@@ -8,13 +8,15 @@
 //! JEXL is an expression language used by Mozilla, you can find more information here: https://github.com/mozilla/mozjexl
 //!
 //! # How to use
-//! The access point for this crate is the `eval` functions
+//! The access point for this crate is the `eval` functions of the Evaluator Struct
 //! You can use the `eval` function directly to evaluate standalone statements
 //!
 //! For example:
 //! ```rust
-//! use jexl_eval::eval;
-//! assert_eq!(eval("'Hello ' + 'World'").unwrap(), "Hello World");
+//! use jexl_eval::Evaluator;
+//! use serde_json::json as value;
+//! let evaluator = Evaluator::new();
+//! assert_eq!(evaluator.eval("'Hello ' + 'World'").unwrap(), value!("Hello World"));
 //! ```
 //!
 //! You can also run the statements against a context using the `eval_in_context` function
@@ -23,10 +25,11 @@
 //!
 //! For example:
 //! ```rust
-//! use jexl_eval::eval_in_context;
+//! use jexl_eval::Evaluator;
 //! use serde_json::json as value;
 //! let context = value!({"a": {"b": 2.0}});
-//! assert_eq!(eval_in_context("a.b", context).unwrap(), value!(2.0));
+//! let evaluator = Evaluator::new();
+//! assert_eq!(evaluator.eval_in_context("a.b", context).unwrap(), value!(2.0));
 //! ```
 //!
 
@@ -38,6 +41,7 @@ use serde_json::{json as value, Value};
 
 pub mod error;
 use error::*;
+use std::collections::HashMap;
 
 const EPSILON: f64 = 0.000001f64;
 
@@ -67,103 +71,162 @@ impl Truthy for Value {
 
 type Context = Value;
 
-pub fn eval(input: &str) -> Result<'_, Value> {
-    let context = value!({});
-    eval_in_context(input, &context)
+/// TransformFn represents an arbitrary transform function
+/// Transform functions take a `serde_json::Value`to represent their arguments
+/// and return a `serde_json::Value`.
+/// the transform function itself is responsible for checking if the format of
+/// the arguments is correct
+// TODO: Make this return a result and deal with the lifetime of the error..
+type TransformFn = Box<dyn Fn(Value) -> Value>;
+
+#[derive(Default)]
+pub struct Evaluator {
+    transforms: HashMap<String, TransformFn>,
 }
 
-pub fn eval_in_context<T: serde::Serialize>(input: &str, context: T) -> Result<'_, Value> {
-    let tree = Parser::parse(input)?;
-    let context = serde_json::to_value(context)?;
-    if !context.is_object() {
-        return Err(EvaluationError::InvalidContext);
+impl Evaluator {
+    pub fn new() -> Self {
+        Self::default()
     }
-    eval_ast(tree, &context)
-}
 
-fn eval_ast<'a>(ast: Expression, context: &Context) -> Result<'a, Value> {
-    match ast {
-        Expression::Number(n) => Ok(value!(n)),
-        Expression::Boolean(b) => Ok(value!(b)),
-        Expression::String(s) => Ok(value!(s)),
-        Expression::Array(xs) => xs.into_iter().map(|x| eval_ast(*x, context)).collect(),
+    /// Adds a custom transform function
+    /// This is meant as a way to allow consumers to add their own custom functionality
+    /// to the expression language.
+    /// Note that the name added here has to match with
+    /// the name that the transform will have when it's a part of the expression statement
+    ///
+    /// # Arguments:
+    /// - `name`: The name of the transfrom
+    /// - `transform`: The actual function. A Box<dyn Fn(serde_json::Value) -> Value>
+    ///
+    /// # Example:
+    ///
+    /// ```rust
+    /// use jexl_eval::Evaluator;
+    /// use serde_json::{json as value, Value};
+    ///
+    /// let mut evaluator = Evaluator::new();
+    /// evaluator.add_transform("lower", Box::new(|v: Value| {
+    ///    let s = v.as_str().expect("Should be a string!");
+    ///    value!(s.to_lowercase())
+    ///  }));
+    ///
+    /// assert_eq!(evaluator.eval("'JOHN DOe'|lower").unwrap(), value!("john doe"))
+    /// ```
+    pub fn add_transform(&mut self, name: &str, transform: TransformFn) {
+        self.transforms.insert(name.to_string(), transform);
+    }
 
-        Expression::Object(items) => {
-            let mut map = serde_json::Map::with_capacity(items.len());
-            for (key, expr) in items.into_iter() {
-                if map.contains_key(&key) {
-                    return Err(EvaluationError::DuplicateObjectKey(key));
-                }
-                let value = eval_ast(*expr, context)?;
-                map.insert(key, value);
-            }
-            Ok(Value::Object(map))
+    pub fn eval<'a>(&self, input: &'a str) -> Result<'a, Value> {
+        let context = value!({});
+        self.eval_in_context(input, &context)
+    }
+
+    pub fn eval_in_context<'a, T: serde::Serialize>(
+        &self,
+        input: &'a str,
+        context: T,
+    ) -> Result<'a, Value> {
+        let tree = Parser::parse(input)?;
+        let context = serde_json::to_value(context)?;
+        if !context.is_object() {
+            return Err(EvaluationError::InvalidContext);
         }
+        self.eval_ast(tree, &context)
+    }
 
-        Expression::IdentifierSequence(exprs) => {
-            assert!(!exprs.is_empty());
-            let mut rv: Option<&Value> = Some(context);
-            for expr in exprs.into_iter() {
-                let key = eval_ast(*expr, context)?;
-                if let Some(value) = rv {
-                    rv = match key {
-                        Value::String(s) => value.get(&s),
-                        Value::Number(f) => value.get(f.as_f64().unwrap().floor() as usize),
-                        _ => return Err(EvaluationError::InvalidIndexType),
-                    };
-                } else {
-                    break;
+    fn eval_ast<'a>(&self, ast: Expression, context: &Context) -> Result<'a, Value> {
+        match ast {
+            Expression::Number(n) => Ok(value!(n)),
+            Expression::Boolean(b) => Ok(value!(b)),
+            Expression::String(s) => Ok(value!(s)),
+            Expression::Array(xs) => xs.into_iter().map(|x| self.eval_ast(*x, context)).collect(),
+
+            Expression::Object(items) => {
+                let mut map = serde_json::Map::with_capacity(items.len());
+                for (key, expr) in items.into_iter() {
+                    if map.contains_key(&key) {
+                        return Err(EvaluationError::DuplicateObjectKey(key));
+                    }
+                    let value = self.eval_ast(*expr, context)?;
+                    map.insert(key, value);
                 }
+                Ok(Value::Object(map))
             }
 
-            Ok(rv.unwrap_or(&value!(null)).clone())
-        }
-
-        Expression::BinaryOperation {
-            left,
-            right,
-            operation,
-        } => {
-            let left = eval_ast(*left, context)?;
-            let right = eval_ast(*right, context)?;
-            match (operation, left, right) {
-                (OpCode::And, a, b) => Ok(if a.is_truthy() { b } else { a }),
-                (OpCode::Or, a, b) => Ok(if a.is_truthy() { a } else { b }),
-
-                (op, Value::Number(a), Value::Number(b)) => {
-                    let left = a.as_f64().unwrap();
-                    let right = b.as_f64().unwrap();
-                    Ok(match op {
-                        OpCode::Add => value!(left + right),
-                        OpCode::Subtract => value!(left - right),
-                        OpCode::Multiply => value!(left * right),
-                        OpCode::Divide => value!(left / right),
-                        OpCode::FloorDivide => value!((left / right).floor()),
-                        OpCode::Modulus => value!(left % right),
-                        OpCode::Exponent => value!(left.powf(right)),
-                        OpCode::Less => value!(left < right),
-                        OpCode::Greater => value!(left > right),
-                        OpCode::LessEqual => value!(left <= right),
-                        OpCode::GreaterEqual => value!(left >= right),
-                        OpCode::Equal => value!((left - right).abs() < EPSILON),
-                        OpCode::NotEqual => value!((left - right).abs() > EPSILON),
-                        OpCode::In => value!(false),
-                        OpCode::And | OpCode::Or => {
-                            unreachable!("Covered by previous case in parent match")
-                        }
-                    })
+            Expression::IdentifierSequence(exprs) => {
+                assert!(!exprs.is_empty());
+                let mut rv: Option<&Value> = Some(context);
+                for expr in exprs.into_iter() {
+                    let key = self.eval_ast(*expr, context)?;
+                    if let Some(value) = rv {
+                        rv = match key {
+                            Value::String(s) => value.get(&s),
+                            Value::Number(f) => value.get(f.as_f64().unwrap().floor() as usize),
+                            _ => return Err(EvaluationError::InvalidIndexType),
+                        };
+                    } else {
+                        break;
+                    }
                 }
 
-                (OpCode::Add, Value::String(a), Value::String(b)) => {
-                    Ok(value!(format!("{}{}", a, b)))
+                Ok(rv.unwrap_or(&value!(null)).clone())
+            }
+
+            Expression::BinaryOperation {
+                left,
+                right,
+                operation,
+            } => {
+                let left = self.eval_ast(*left, context)?;
+                let right = self.eval_ast(*right, context)?;
+                match (operation, left, right) {
+                    (OpCode::And, a, b) => Ok(if a.is_truthy() { b } else { a }),
+                    (OpCode::Or, a, b) => Ok(if a.is_truthy() { a } else { b }),
+
+                    (op, Value::Number(a), Value::Number(b)) => {
+                        let left = a.as_f64().unwrap();
+                        let right = b.as_f64().unwrap();
+                        Ok(match op {
+                            OpCode::Add => value!(left + right),
+                            OpCode::Subtract => value!(left - right),
+                            OpCode::Multiply => value!(left * right),
+                            OpCode::Divide => value!(left / right),
+                            OpCode::FloorDivide => value!((left / right).floor()),
+                            OpCode::Modulus => value!(left % right),
+                            OpCode::Exponent => value!(left.powf(right)),
+                            OpCode::Less => value!(left < right),
+                            OpCode::Greater => value!(left > right),
+                            OpCode::LessEqual => value!(left <= right),
+                            OpCode::GreaterEqual => value!(left >= right),
+                            OpCode::Equal => value!((left - right).abs() < EPSILON),
+                            OpCode::NotEqual => value!((left - right).abs() > EPSILON),
+                            OpCode::In => value!(false),
+                            OpCode::And | OpCode::Or => {
+                                unreachable!("Covered by previous case in parent match")
+                            }
+                        })
+                    }
+
+                    (OpCode::Add, Value::String(a), Value::String(b)) => {
+                        Ok(value!(format!("{}{}", a, b)))
+                    }
+                    (OpCode::In, Value::String(a), Value::String(b)) => Ok(value!(b.contains(&a))),
+                    (OpCode::Equal, Value::String(a), Value::String(b)) => Ok(value!(a == b)),
+                    (operation, left, right) => Err(EvaluationError::InvalidBinaryOp {
+                        operation,
+                        left,
+                        right,
+                    }),
                 }
-                (OpCode::In, Value::String(a), Value::String(b)) => Ok(value!(b.contains(&a))),
-                (OpCode::Equal, Value::String(a), Value::String(b)) => Ok(value!(a == b)),
-                (operation, left, right) => Err(EvaluationError::InvalidBinaryOp {
-                    operation,
-                    left,
-                    right,
-                }),
+            }
+            Expression::Transform { name, args } => {
+                let args = self.eval_ast(*args, context)?;
+                let f = self
+                    .transforms
+                    .get(&name)
+                    .ok_or(EvaluationError::UnknownTransform(name))?;
+                Ok(f(args))
             }
         }
     }
@@ -176,48 +239,53 @@ mod tests {
 
     #[test]
     fn test_literal() {
-        assert_eq!(eval("1").unwrap(), value!(1.0));
+        assert_eq!(Evaluator::new().eval("1").unwrap(), value!(1.0));
     }
 
     #[test]
     fn test_binary_expression_addition() {
-        assert_eq!(eval("1 + 2").unwrap(), value!(3.0));
+        assert_eq!(Evaluator::new().eval("1 + 2").unwrap(), value!(3.0));
     }
 
     #[test]
     fn test_binary_expression_multiplication() {
-        assert_eq!(eval("2 * 3").unwrap(), value!(6.0));
+        assert_eq!(Evaluator::new().eval("2 * 3").unwrap(), value!(6.0));
     }
 
     #[test]
     fn test_precedence() {
-        assert_eq!(eval("2 + 3 * 4").unwrap(), value!(14.0));
+        assert_eq!(Evaluator::new().eval("2 + 3 * 4").unwrap(), value!(14.0));
     }
 
     #[test]
     fn test_parenthesis() {
-        assert_eq!(eval("(2 + 3) * 4").unwrap(), value!(20.0));
+        assert_eq!(Evaluator::new().eval("(2 + 3) * 4").unwrap(), value!(20.0));
     }
 
     #[test]
     fn test_string_concat() {
-        assert_eq!(eval("'Hello ' + 'World'").unwrap(), value!("Hello World"));
+        assert_eq!(
+            Evaluator::new().eval("'Hello ' + 'World'").unwrap(),
+            value!("Hello World")
+        );
     }
 
     #[test]
     fn test_true_comparison() {
-        assert_eq!(eval("2 > 1").unwrap(), value!(true));
+        assert_eq!(Evaluator::new().eval("2 > 1").unwrap(), value!(true));
     }
 
     #[test]
     fn test_false_comparison() {
-        assert_eq!(eval("2 <= 1").unwrap(), value!(false));
+        assert_eq!(Evaluator::new().eval("2 <= 1").unwrap(), value!(false));
     }
 
     #[test]
     fn test_boolean_logic() {
         assert_eq!(
-            eval("'foo' && 6 >= 6 && 0 + 1 && true").unwrap(),
+            Evaluator::new()
+                .eval("'foo' && 6 >= 6 && 0 + 1 && true")
+                .unwrap(),
             value!(true)
         );
     }
@@ -225,13 +293,19 @@ mod tests {
     #[test]
     fn test_identifier() {
         let context = value!({"a": 1.0});
-        assert_eq!(eval_in_context("a", context).unwrap(), value!(1.0));
+        assert_eq!(
+            Evaluator::new().eval_in_context("a", context).unwrap(),
+            value!(1.0)
+        );
     }
 
     #[test]
     fn test_identifier_chain() {
         let context = value!({"a": {"b": 2.0}});
-        assert_eq!(eval_in_context("a.b", context).unwrap(), value!(2.0));
+        assert_eq!(
+            Evaluator::new().eval_in_context("a.b", context).unwrap(),
+            value!(2.0)
+        );
     }
 
     #[test]
@@ -247,7 +321,9 @@ mod tests {
             }
         });
         assert_eq!(
-            eval_in_context("foo.bar[.tek == 'baz']", &context).unwrap(),
+            Evaluator::new()
+                .eval_in_context("foo.bar[.tek == 'baz']", &context)
+                .unwrap(),
             value!([{"tek": "baz"}])
         );
     }
@@ -264,7 +340,9 @@ mod tests {
             }
         });
         assert_eq!(
-            eval_in_context("foo.bar[1].tek", context).unwrap(),
+            Evaluator::new()
+                .eval_in_context("foo.bar[1].tek", context)
+                .unwrap(),
             value!("baz")
         );
     }
@@ -274,36 +352,27 @@ mod tests {
     fn test_object_expression_properties() {
         let context = value!({"foo": {"baz": {"bar": "tek"}}});
         assert_eq!(
-            eval_in_context("foo['ba' + 'z']", &context).unwrap(),
+            Evaluator::new()
+                .eval_in_context("foo['ba' + 'z']", &context)
+                .unwrap(),
             value!("tek")
         );
     }
 
     #[test]
-    #[should_panic]
-    fn test_missing_transform_exception() {
-        let err = eval("'hello'|world").unwrap_err();
-        if let EvaluationError::UnknownTransform(transform) = err {
-            assert_eq!(transform, "world")
-        } else {
-            panic!("Should have thrown an unknown transform error")
-        }
-    }
-
-    #[test]
     fn test_divfloor() {
-        assert_eq!(eval("7 // 2").unwrap(), value!(3.0));
+        assert_eq!(Evaluator::new().eval("7 // 2").unwrap(), value!(3.0));
     }
 
     #[test]
     fn test_empty_object_literal() {
-        assert_eq!(eval("{}").unwrap(), value!({}));
+        assert_eq!(Evaluator::new().eval("{}").unwrap(), value!({}));
     }
 
     #[test]
     fn test_object_literal_strings() {
         assert_eq!(
-            eval("{'foo': {'bar': 'tek'}}").unwrap(),
+            Evaluator::new().eval("{'foo': {'bar': 'tek'}}").unwrap(),
             value!({"foo": {"bar": "tek"}})
         );
     }
@@ -312,7 +381,7 @@ mod tests {
     #[should_panic]
     fn test_object_literal_identifiers() {
         assert_eq!(
-            eval("{foo: {bar: 'tek'}}").unwrap(),
+            Evaluator::new().eval("{foo: {bar: 'tek'}}").unwrap(),
             value!({"foo": {"bar": "tek"}})
         );
     }
@@ -326,8 +395,8 @@ mod tests {
             default_binary_operators,
             default_unary_operators
         )
-        evaluator = Evaluator(config)
-        result = evaluate(tree('foo|half + 3'), {'foo': 10})
+        Evaluator::new().evaluator = Evaluator::new().evaluator(config)
+        result = Evaluator::new().evaluate(tree('foo|half + 3'), {'foo': 10})
         assert result == 8
 
     def test_transforms_multiple_arguments():
@@ -338,8 +407,8 @@ mod tests {
                 'concat': lambda val, a1, a2, a3: val + ': ' + a1 + a2 + a3,
             }
         )
-        evaluator = Evaluator(config)
-        result = evaluate(tree('"foo"|concat("baz", "bar", "tek")'))
+        Evaluator::new().evaluator = Evaluator::new().evaluator(config)
+        result = Evaluator::new().evaluate(tree('"foo"|concat("baz", "bar", "tek")'))
         assert result == 'foo: bazbartek'
 
     */
@@ -347,35 +416,51 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_object_literal_properties() {
-        assert_eq!(eval("{foo: 'bar'}.foo").unwrap(), value!("bar"));
+        assert_eq!(
+            Evaluator::new().eval("{foo: 'bar'}.foo").unwrap(),
+            value!("bar")
+        );
     }
 
     #[test]
     fn test_array_literal() {
-        assert_eq!(eval("['foo', 1+2]").unwrap(), value!(["foo", 3.0]));
+        assert_eq!(
+            Evaluator::new().eval("['foo', 1+2]").unwrap(),
+            value!(["foo", 3.0])
+        );
     }
 
     #[test]
     #[should_panic]
     fn test_array_literal_indexing() {
-        assert_eq!(eval("[1, 2, 3][1]").unwrap(), value!(2.0));
+        assert_eq!(Evaluator::new().eval("[1, 2, 3][1]").unwrap(), value!(2.0));
     }
 
     #[test]
     fn test_in_operator_string() {
-        assert_eq!(eval("'bar' in 'foobartek'").unwrap(), value!(true));
-        assert_eq!(eval("'baz' in 'foobartek'").unwrap(), value!(false));
+        assert_eq!(
+            Evaluator::new().eval("'bar' in 'foobartek'").unwrap(),
+            value!(true)
+        );
+        assert_eq!(
+            Evaluator::new().eval("'baz' in 'foobartek'").unwrap(),
+            value!(false)
+        );
     }
 
     #[test]
     #[should_panic]
     fn test_in_operator_array() {
         assert_eq!(
-            eval("'bar' in ['foo', 'bar', 'tek']").unwrap(),
+            Evaluator::new()
+                .eval("'bar' in ['foo', 'bar', 'tek']")
+                .unwrap(),
             value!(true)
         );
         assert_eq!(
-            eval("'baz' in ['foo', 'bar', 'tek']").unwrap(),
+            Evaluator::new()
+                .eval("'baz' in ['foo', 'bar', 'tek']")
+                .unwrap(),
             value!(false)
         );
     }
@@ -383,29 +468,63 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_conditional_expression() {
-        assert_eq!(eval("'foo' ? 1 : 2").unwrap(), value!(1));
-        assert_eq!(eval("'' ? 1 : 2").unwrap(), value!(2));
+        assert_eq!(Evaluator::new().eval("'foo' ? 1 : 2").unwrap(), value!(1));
+        assert_eq!(Evaluator::new().eval("'' ? 1 : 2").unwrap(), value!(2));
     }
 
     #[test]
     fn test_arbitrary_whitespace() {
-        assert_eq!(eval("(\t2\n+\n3) *\n4\n\r\n").unwrap(), value!(20.0));
+        assert_eq!(
+            Evaluator::new().eval("(\t2\n+\n3) *\n4\n\r\n").unwrap(),
+            value!(20.0)
+        );
     }
 
     #[test]
     fn test_non_integer() {
-        assert_eq!(eval("1.5 * 3.0").unwrap(), value!(4.5));
+        assert_eq!(Evaluator::new().eval("1.5 * 3.0").unwrap(), value!(4.5));
     }
 
     #[test]
     fn test_string_literal() {
-        assert_eq!(eval("'hello world'").unwrap(), value!("hello world"));
-        assert_eq!(eval("\"hello world\"").unwrap(), value!("hello world"));
+        assert_eq!(
+            Evaluator::new().eval("'hello world'").unwrap(),
+            value!("hello world")
+        );
+        assert_eq!(
+            Evaluator::new().eval("\"hello world\"").unwrap(),
+            value!("hello world")
+        );
     }
 
     #[test]
     fn test_string_escapes() {
-        assert_eq!(eval("'a\\'b'").unwrap(), value!("a'b"));
-        assert_eq!(eval("\"a\\\"b\"").unwrap(), value!("a\"b"));
+        assert_eq!(Evaluator::new().eval("'a\\'b'").unwrap(), value!("a'b"));
+        assert_eq!(Evaluator::new().eval("\"a\\\"b\"").unwrap(), value!("a\"b"));
+    }
+
+    #[test]
+    // Test a very simple transform that applies to_lowercase to a string
+    fn test_simple_transform() {
+        let mut evaluator = Evaluator::new();
+        evaluator.add_transform(
+            "lower",
+            Box::new(|v: Value| {
+                let s = v.as_str().expect("Should be a string!");
+                value!(s.to_lowercase())
+            }),
+        );
+        assert_eq!(evaluator.eval("'T_T'|lower").unwrap(), value!("t_t"));
+    }
+
+    #[test]
+    // Test returning an UnknownTransform error if a transform is unknown
+    fn test_missing_transform() {
+        let err = Evaluator::new().eval("'hello'|world").unwrap_err();
+        if let EvaluationError::UnknownTransform(transform) = err {
+            assert_eq!(transform, "world")
+        } else {
+            panic!("Should have thrown an unknown transform error")
+        }
     }
 }

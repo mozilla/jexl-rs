@@ -15,6 +15,10 @@ pub enum Expression {
         left: Box<Expression>,
         right: Box<Expression>,
     },
+    Transform {
+        name: String,
+        args: Box<Expression>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]

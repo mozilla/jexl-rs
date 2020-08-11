@@ -45,4 +45,17 @@ mod tests {
     fn binary_expression_whitespace() {
         assert_eq!(Parser::parse("1  +     2 "), Parser::parse("1+2"),);
     }
+
+    #[test]
+    fn transform_simple() {
+        let exp = "\"T_T\"|lower";
+        let parsed = Parser::parse(exp).unwrap();
+        assert_eq!(
+            parsed,
+            Expression::Transform {
+                name: "lower".to_string(),
+                args: Box::new(Expression::String("T_T".to_string()))
+            }
+        );
+    }
 }
