@@ -76,15 +76,17 @@ type Context = Value;
 /// and return a `serde_json::Value`.
 /// the transform function itself is responsible for checking if the format and number of
 /// the arguments is correct
-// TODO: Make this return a result and deal with the lifetime of the error..
-pub type TransformFn = Box<dyn Fn(&[Value]) -> Value>;
+///
+/// Returns a Result with an `anyhow::Error`. This allows consumers to return their own custom errors
+/// in the closure, and use `.into` to convert it into an `anyhow::Error`. The error message will be perserved
+pub type TransformFn<'a> = Box<dyn Fn(&[Value]) -> Result<Value, anyhow::Error> + 'a>;
 
 #[derive(Default)]
-pub struct Evaluator {
-    transforms: HashMap<String, TransformFn>,
+pub struct Evaluator<'a> {
+    transforms: HashMap<String, TransformFn<'a>>,
 }
 
-impl Evaluator {
+impl<'a> Evaluator<'a> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -97,7 +99,7 @@ impl Evaluator {
     ///
     /// # Arguments:
     /// - `name`: The name of the transfrom
-    /// - `transform`: The actual function. A Box<dyn Fn(serde_json::Value) -> Value>
+    /// - `transform`: The actual function. A closure the implements Fn(&[serde_json::Value]) -> Result<Value, anyhow::Error>
     ///
     /// # Example:
     ///
@@ -105,67 +107,36 @@ impl Evaluator {
     /// use jexl_eval::Evaluator;
     /// use serde_json::{json as value, Value};
     ///
-    /// let mut evaluator = Evaluator::new().with_transform("lower", Box::new(|v: &[Value]| {
+    /// let mut evaluator = Evaluator::new().with_transform("lower", |v: &[Value]| {
     ///    let s = v
     ///            .first()
     ///            .expect("Should have 1 argument!")
     ///            .as_str()
     ///            .expect("Should be a string!");
-    ///       value!(s.to_lowercase())
-    ///  }));
+    ///       Ok(value!(s.to_lowercase()))
+    ///  });
     ///
     /// assert_eq!(evaluator.eval("'JOHN DOe'|lower").unwrap(), value!("john doe"))
     /// ```
-    pub fn with_transform(mut self, name: &str, transform: TransformFn) -> Self {
-        self.transforms.insert(name.to_string(), transform);
+    pub fn with_transform<F>(mut self, name: &str, transform: F) -> Self
+    where
+        F: Fn(&[Value]) -> Result<Value, anyhow::Error> + 'a,
+    {
+        self.transforms
+            .insert(name.to_string(), Box::new(transform));
         self
     }
 
-    /// Adds multiple custom transfroms
-    /// This is meant as a way to allow consumers to add their own custom functionality
-    /// to the expression language.
-    /// Note that the names added here has to match with
-    /// the names that the transforms will have when it's a part of the expression statement
-    ///
-    /// # Arguments:
-    /// - `transforms`: a HashMap with keys being the names, and the values are the boxed closures
-    ///
-    /// # Example:
-    ///
-    /// ```rust
-    /// use jexl_eval::{Evaluator, TransformFn};
-    /// use serde_json::{json as value, Value};
-    /// use std::collections::HashMap;
-    /// let mut transforms = HashMap::new();
-    /// transforms.insert(
-    ///    "lower".to_string(),
-    ///    TransformFn::from(Box::new(|v: &[Value]| {
-    ///       let s = v
-    ///            .first()
-    ///            .expect("Should have 1 argument!")
-    ///            .as_str()
-    ///            .expect("Should be a string!");
-    ///       value!(s.to_lowercase())
-    /// })));
-    /// let mut evaluator = Evaluator::new().with_transforms(transforms);
-    ///
-    /// assert_eq!(evaluator.eval("'JOHN DOe'|lower").unwrap(), value!("john doe"))
-    /// ```
-    pub fn with_transforms(mut self, transforms: HashMap<String, TransformFn>) -> Self {
-        self.transforms.extend(transforms);
-        self
-    }
-
-    pub fn eval<'a>(&self, input: &'a str) -> Result<'a, Value> {
+    pub fn eval<'b>(&self, input: &'b str) -> Result<'b, Value> {
         let context = value!({});
         self.eval_in_context(input, &context)
     }
 
-    pub fn eval_in_context<'a, T: serde::Serialize>(
+    pub fn eval_in_context<'b, T: serde::Serialize>(
         &self,
-        input: &'a str,
+        input: &'b str,
         context: T,
-    ) -> Result<'a, Value> {
+    ) -> Result<'b, Value> {
         let tree = Parser::parse(input)?;
         let context = serde_json::to_value(context)?;
         if !context.is_object() {
@@ -174,7 +145,7 @@ impl Evaluator {
         self.eval_ast(tree, &context)
     }
 
-    fn eval_ast<'a>(&self, ast: Expression, context: &Context) -> Result<'a, Value> {
+    fn eval_ast<'b>(&self, ast: Expression, context: &Context) -> Result<'b, Value> {
         match ast {
             Expression::Number(n) => Ok(value!(n)),
             Expression::Boolean(b) => Ok(value!(b)),
@@ -276,7 +247,7 @@ impl Evaluator {
                     .transforms
                     .get(&name)
                     .ok_or(EvaluationError::UnknownTransform(name))?;
-                Ok(f(&args_arr))
+                f(&args_arr).map_err(|e| e.into())
             }
         }
     }
@@ -436,33 +407,6 @@ mod tests {
         );
     }
 
-    /*
-    // TODO needs transforms
-
-    def test_transforms():
-        config = JEXLConfig(
-            {'half': lambda x: x / 2},
-            default_binary_operators,
-            default_unary_operators
-        )
-        Evaluator::new().evaluator = Evaluator::new().evaluator(config)
-        result = Evaluator::new().evaluate(tree('foo|half + 3'), {'foo': 10})
-        assert result == 8
-
-    def test_transforms_multiple_arguments():
-        config = JEXLConfig(
-            binary_operators=default_binary_operators,
-            unary_operators=default_unary_operators,
-            transforms={
-                'concat': lambda val, a1, a2, a3: val + ': ' + a1 + a2 + a3,
-            }
-        )
-        Evaluator::new().evaluator = Evaluator::new().evaluator(config)
-        result = Evaluator::new().evaluate(tree('"foo"|concat("baz", "bar", "tek")'))
-        assert result == 'foo: bazbartek'
-
-    */
-
     #[test]
     #[should_panic]
     fn test_object_literal_properties() {
@@ -556,17 +500,14 @@ mod tests {
     #[test]
     // Test a very simple transform that applies to_lowercase to a string
     fn test_simple_transform() {
-        let evaluator = Evaluator::new().with_transform(
-            "lower",
-            Box::new(|v: &[Value]| {
-                let s = v
-                    .get(0)
-                    .expect("There should be one argument!")
-                    .as_str()
-                    .expect("Should be a string!");
-                value!(s.to_lowercase())
-            }),
-        );
+        let evaluator = Evaluator::new().with_transform("lower", |v: &[Value]| {
+            let s = v
+                .get(0)
+                .expect("There should be one argument!")
+                .as_str()
+                .expect("Should be a string!");
+            Ok(value!(s.to_lowercase()))
+        });
         assert_eq!(evaluator.eval("'T_T'|lower").unwrap(), value!("t_t"));
     }
 
@@ -583,30 +524,24 @@ mod tests {
 
     #[test]
     fn test_add_multiple_transforms() {
-        let mut transforms = HashMap::new();
-        transforms.insert(
-            "square".to_string(),
-            TransformFn::from(Box::new(|v: &[Value]| {
+        let evaluator = Evaluator::new()
+            .with_transform("sqrt", |v: &[Value]| {
                 let num = v
                     .first()
                     .expect("There should be one argument!")
                     .as_f64()
                     .expect("Should be a valid number!");
-                value!((num as u64).pow(2))
-            })),
-        );
-        transforms.insert(
-            "sqrt".to_string(),
-            TransformFn::from(Box::new(|v: &[Value]| {
+                Ok(value!(num.sqrt() as u64))
+            })
+            .with_transform("square", |v: &[Value]| {
                 let num = v
                     .first()
                     .expect("There should be one argument!")
                     .as_f64()
                     .expect("Should be a valid number!");
-                value!(num.sqrt() as u64)
-            })),
-        );
-        let evaluator = Evaluator::new().with_transforms(transforms);
+                Ok(value!((num as u64).pow(2)))
+            });
+
         assert_eq!(evaluator.eval("4|square").unwrap(), value!(16));
         assert_eq!(evaluator.eval("4|sqrt").unwrap(), value!(2));
         assert_eq!(evaluator.eval("4|square|sqrt").unwrap(), value!(4));
@@ -614,27 +549,44 @@ mod tests {
 
     #[test]
     fn test_transform_with_argument() {
-        let evaluator = Evaluator::new().with_transform(
-            "split",
-            Box::new(|args: &[Value]| {
-                let s = args
-                    .first()
-                    .expect("Should be a first argument!")
-                    .as_str()
-                    .expect("Should be a string!");
-                let c = args
-                    .get(1)
-                    .expect("There should be a second argument!")
-                    .as_str()
-                    .expect("Should be a string");
-                let res: Vec<&str> = s.split_terminator(c).collect();
-                value!(res)
-            }),
-        );
+        let evaluator = Evaluator::new().with_transform("split", |args: &[Value]| {
+            let s = args
+                .first()
+                .expect("Should be a first argument!")
+                .as_str()
+                .expect("Should be a string!");
+            let c = args
+                .get(1)
+                .expect("There should be a second argument!")
+                .as_str()
+                .expect("Should be a string");
+            let res: Vec<&str> = s.split_terminator(c).collect();
+            Ok(value!(res))
+        });
 
         assert_eq!(
             evaluator.eval("'John Doe'|split(' ')").unwrap(),
             value!(vec!["John", "Doe"])
         );
+    }
+
+    #[derive(Debug, thiserror::Error)]
+    enum CustomError {
+        #[error("Invalid argument in transform!")]
+        InvalidArgument,
+    }
+
+    #[test]
+    fn test_custom_error_message() {
+        let evaluator = Evaluator::new().with_transform("error", |_: &[Value]| {
+            Err(CustomError::InvalidArgument.into())
+        });
+        let res = evaluator.eval("1234|error");
+        assert!(res.is_err());
+        if let EvaluationError::CustomError(e) = res.unwrap_err() {
+            assert_eq!(e.to_string(), "Invalid argument in transform!")
+        } else {
+            panic!("Should have returned a Custom error!")
+        }
     }
 }
