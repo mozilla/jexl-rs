@@ -17,7 +17,8 @@ pub enum Expression {
     },
     Transform {
         name: String,
-        args: Box<Expression>,
+        subject: Box<Expression>,
+        args: Option<Vec<Box<Expression>>>,
     },
 }
 

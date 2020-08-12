@@ -47,14 +47,49 @@ mod tests {
     }
 
     #[test]
-    fn transform_simple() {
-        let exp = "\"T_T\"|lower";
+    fn transform_simple_no_args() {
+        let exp = "'T_T'|lower";
         let parsed = Parser::parse(exp).unwrap();
         assert_eq!(
             parsed,
             Expression::Transform {
                 name: "lower".to_string(),
-                args: Box::new(Expression::String("T_T".to_string()))
+                subject: Box::new(Expression::String("T_T".to_string())),
+                args: None
+            }
+        );
+    }
+
+    #[test]
+    fn transform_multiple_args() {
+        let exp = "'John Doe'|split(' ')";
+        let parsed = Parser::parse(exp).unwrap();
+        assert_eq!(
+            parsed,
+            Expression::Transform {
+                name: "split".to_string(),
+                subject: Box::new(Expression::String("John Doe".to_string())),
+                args: Some(vec![Box::new(Expression::String(" ".to_string()))])
+            }
+        );
+    }
+
+    #[test]
+    fn trasform_way_too_many_args() {
+        let exp = "123456|math(12, 35, 100, 31, 90)";
+        let parsed = Parser::parse(exp).unwrap();
+        assert_eq!(
+            parsed,
+            Expression::Transform {
+                name: "math".to_string(),
+                subject: Box::new(Expression::Number(123_456f64)),
+                args: Some(vec![
+                    Box::new(Expression::Number(12f64)),
+                    Box::new(Expression::Number(35f64)),
+                    Box::new(Expression::Number(100f64)),
+                    Box::new(Expression::Number(31f64)),
+                    Box::new(Expression::Number(90f64)),
+                ])
             }
         );
     }
