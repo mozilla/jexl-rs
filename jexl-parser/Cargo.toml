@@ -2,7 +2,7 @@
 edition = '2018'
 name = "jexl-parser"
 version = "0.1.3-alpha.0"
-authors = ["Mike Cooper <mythmon@gmail.com>", "The Sync Team <sync-team@mozilla.com>"]
+authors = ["Mike Cooper <mythmon@gmail.com>", "The Sync Team <sync-team@mozilla.com>", "The Glean Team <glean-team@mozilla.com>"]
 build = "build.rs"
 description = "A JEXL parser written in Rust"
 license = "MPL-2.0"
