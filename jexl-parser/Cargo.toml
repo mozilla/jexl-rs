@@ -1,7 +1,7 @@
 [package]
 edition = '2018'
 name = "jexl-parser"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Mike Cooper <mythmon@gmail.com>", "The Sync Team <sync-team@mozilla.com>"]
 build = "build.rs"
 description = "A JEXL parser written in Rust"
