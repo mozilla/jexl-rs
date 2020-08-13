@@ -27,6 +27,8 @@ pub enum EvaluationError<'a> {
     InvalidIndexType,
     #[error("Invalid json: {0}")]
     JSONError(#[from] serde_json::Error),
+    #[error("Custom error: {0}")]
+    CustomError(#[from] anyhow::Error),
 }
 
 impl<'a> From<ParseError<usize, Token<'a>, &'a str>> for EvaluationError<'a> {

@@ -15,6 +15,11 @@ pub enum Expression {
         left: Box<Expression>,
         right: Box<Expression>,
     },
+    Transform {
+        name: String,
+        subject: Box<Expression>,
+        args: Option<Vec<Box<Expression>>>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]

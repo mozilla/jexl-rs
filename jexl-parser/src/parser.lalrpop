@@ -32,6 +32,11 @@ Expr40: Box<Expression> = {
 };
 
 Expr50: Box<Expression> = {
+    <subject: Expr50> "|" <name: Identifier> <args: Args?> => Box::new(Expression::Transform{name, subject, args}),
+    Expr60
+}
+
+Expr60: Box<Expression> = {
     Number => Box::new(Expression::Number(<>)),
     Boolean => Box::new(Expression::Boolean(<>)),
     String => Box::new(Expression::String(<>)),
@@ -39,6 +44,10 @@ Expr50: Box<Expression> = {
     Object => Box::new(Expression::Object(<>)),
     IdentifierSequence => Box::new(Expression::IdentifierSequence(<>)),
     "(" <Expression> ")",
+};
+
+Args: Vec<Box<Expression>> = {
+    "(" <Comma<Expression>> ")"
 };
 
 Op10: OpCode = {
