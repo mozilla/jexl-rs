@@ -222,6 +222,7 @@ impl<'a> Evaluator<'a> {
                         Ok(value!(format!("{}{}", a, b)))
                     }
                     (OpCode::In, Value::String(a), Value::String(b)) => Ok(value!(b.contains(&a))),
+                    (OpCode::In, left, Value::Array(v)) => Ok(value!(v.contains(&left))),
                     (OpCode::Equal, Value::String(a), Value::String(b)) => Ok(value!(a == b)),
                     (operation, left, right) => Err(EvaluationError::InvalidBinaryOp {
                         operation,
@@ -443,7 +444,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_in_operator_array() {
         assert_eq!(
             Evaluator::new()
