@@ -35,6 +35,12 @@ pub enum Expression {
         truthy: Box<Expression>,
         falsy: Box<Expression>,
     },
+
+    Filter {
+        ident: String,
+        op: OpCode,
+        right: Box<Expression>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]

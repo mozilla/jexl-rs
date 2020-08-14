@@ -177,6 +177,22 @@ impl<'a> Evaluator<'a> {
 
             Expression::IndexOperation { subject, index } => {
                 let subject = self.eval_ast(*subject, context)?;
+                if let Expression::Filter { ident, op, right } = *index {
+                    let subject_arr = subject.as_array().ok_or(EvaluationError::InvalidFilter)?;
+                    let right = self.eval_ast(*right, context)?;
+                    let filtered = subject_arr
+                        .iter()
+                        .filter(|e| {
+                            let left = e.get(&ident).unwrap_or(&value!(null));
+                            // returns false if any members fail the op, could happen if array members are missing the identifier
+                            Self::apply_op(op, left.clone(), right.clone())
+                                .unwrap_or(value!(false))
+                                .is_truthy()
+                        })
+                        .collect::<Vec<_>>();
+                    return Ok(value!(filtered));
+                }
+
                 let index = self.eval_ast(*index, context)?;
                 match index {
                     Value::String(inner) => {
@@ -197,46 +213,7 @@ impl<'a> Evaluator<'a> {
             } => {
                 let left = self.eval_ast(*left, context)?;
                 let right = self.eval_ast(*right, context)?;
-                match (operation, left, right) {
-                    (OpCode::And, a, b) => Ok(if a.is_truthy() { b } else { a }),
-                    (OpCode::Or, a, b) => Ok(if a.is_truthy() { a } else { b }),
-
-                    (op, Value::Number(a), Value::Number(b)) => {
-                        let left = a.as_f64().unwrap();
-                        let right = b.as_f64().unwrap();
-                        Ok(match op {
-                            OpCode::Add => value!(left + right),
-                            OpCode::Subtract => value!(left - right),
-                            OpCode::Multiply => value!(left * right),
-                            OpCode::Divide => value!(left / right),
-                            OpCode::FloorDivide => value!((left / right).floor()),
-                            OpCode::Modulus => value!(left % right),
-                            OpCode::Exponent => value!(left.powf(right)),
-                            OpCode::Less => value!(left < right),
-                            OpCode::Greater => value!(left > right),
-                            OpCode::LessEqual => value!(left <= right),
-                            OpCode::GreaterEqual => value!(left >= right),
-                            OpCode::Equal => value!((left - right).abs() < EPSILON),
-                            OpCode::NotEqual => value!((left - right).abs() > EPSILON),
-                            OpCode::In => value!(false),
-                            OpCode::And | OpCode::Or => {
-                                unreachable!("Covered by previous case in parent match")
-                            }
-                        })
-                    }
-
-                    (OpCode::Add, Value::String(a), Value::String(b)) => {
-                        Ok(value!(format!("{}{}", a, b)))
-                    }
-                    (OpCode::In, Value::String(a), Value::String(b)) => Ok(value!(b.contains(&a))),
-                    (OpCode::In, left, Value::Array(v)) => Ok(value!(v.contains(&left))),
-                    (OpCode::Equal, Value::String(a), Value::String(b)) => Ok(value!(a == b)),
-                    (operation, left, right) => Err(EvaluationError::InvalidBinaryOp {
-                        operation,
-                        left,
-                        right,
-                    }),
-                }
+                Self::apply_op(operation, left, right)
             }
             Expression::Transform {
                 name,
@@ -269,6 +246,57 @@ impl<'a> Evaluator<'a> {
                     self.eval_ast(*falsy, context)
                 }
             }
+
+            Expression::Filter {
+                ident: _,
+                op: _,
+                right: _,
+            } => {
+                // Filters shouldn't be evaluated individually
+                // instead, they are evaluated as a part of an IndexOperation
+                return Err(EvaluationError::InvalidFilter);
+            }
+        }
+    }
+
+    fn apply_op<'b>(operation: OpCode, left: Value, right: Value) -> Result<'b, Value> {
+        match (operation, left, right) {
+            (OpCode::And, a, b) => Ok(if a.is_truthy() { b } else { a }),
+            (OpCode::Or, a, b) => Ok(if a.is_truthy() { a } else { b }),
+
+            (op, Value::Number(a), Value::Number(b)) => {
+                let left = a.as_f64().unwrap();
+                let right = b.as_f64().unwrap();
+                Ok(match op {
+                    OpCode::Add => value!(left + right),
+                    OpCode::Subtract => value!(left - right),
+                    OpCode::Multiply => value!(left * right),
+                    OpCode::Divide => value!(left / right),
+                    OpCode::FloorDivide => value!((left / right).floor()),
+                    OpCode::Modulus => value!(left % right),
+                    OpCode::Exponent => value!(left.powf(right)),
+                    OpCode::Less => value!(left < right),
+                    OpCode::Greater => value!(left > right),
+                    OpCode::LessEqual => value!(left <= right),
+                    OpCode::GreaterEqual => value!(left >= right),
+                    OpCode::Equal => value!((left - right).abs() < EPSILON),
+                    OpCode::NotEqual => value!((left - right).abs() > EPSILON),
+                    OpCode::In => value!(false),
+                    OpCode::And | OpCode::Or => {
+                        unreachable!("Covered by previous case in parent match")
+                    }
+                })
+            }
+
+            (OpCode::Add, Value::String(a), Value::String(b)) => Ok(value!(format!("{}{}", a, b))),
+            (OpCode::In, Value::String(a), Value::String(b)) => Ok(value!(b.contains(&a))),
+            (OpCode::In, left, Value::Array(v)) => Ok(value!(v.contains(&left))),
+            (OpCode::Equal, Value::String(a), Value::String(b)) => Ok(value!(a == b)),
+            (operation, left, right) => Err(EvaluationError::InvalidBinaryOp {
+                operation,
+                left,
+                right,
+            }),
         }
     }
 }
@@ -350,7 +378,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_context_filter_arrays() {
         let context = value!({
             "foo": {
@@ -605,5 +632,23 @@ mod tests {
         } else {
             panic!("Should have returned a Custom error!")
         }
+    }
+
+    #[test]
+    fn test_filter_collections_many_returned() {
+        let evaluator = Evaluator::new();
+        let context = value!({
+            "foo": [
+                {"bobo": 50, "fofo": 100},
+                {"bobo": 60, "baz": 90},
+                {"bobo": 10, "bar": 83},
+                {"bobo": 20, "yam": 12},
+            ]
+        });
+        let exp = "foo[.bobo >= 50]";
+        assert_eq!(
+            evaluator.eval_in_context(exp, context).unwrap(),
+            value!([{"bobo": 50, "fofo": 100}, {"bobo": 60, "baz": 90}])
+        );
     }
 }
