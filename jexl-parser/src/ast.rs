@@ -9,6 +9,8 @@ pub enum Expression {
     Boolean(bool),
     Array(Vec<Box<Expression>>),
     Object(Vec<(String, Box<Expression>)>),
+    Identifier(String),
+
     BinaryOperation {
         operation: OpCode,
         left: Box<Expression>,
@@ -28,7 +30,11 @@ pub enum Expression {
         index: Box<Expression>,
     },
 
-    Identifier(String),
+    Conditional {
+        left: Box<Expression>,
+        truthy: Box<Expression>,
+        falsy: Box<Expression>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
