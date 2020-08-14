@@ -377,12 +377,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_object_expression_properties() {
         let context = value!({"foo": {"baz": {"bar": "tek"}}});
         assert_eq!(
             Evaluator::new()
-                .eval_in_context("foo['ba' + 'z']", &context)
+                .eval_in_context("foo['ba' + 'z'].bar", &context)
                 .unwrap(),
             value!("tek")
         );
@@ -407,7 +406,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_object_literal_identifiers() {
         assert_eq!(
             Evaluator::new().eval("{foo: {bar: 'tek'}}").unwrap(),
@@ -416,7 +414,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_object_literal_properties() {
         assert_eq!(
             Evaluator::new().eval("{foo: 'bar'}.foo").unwrap(),
