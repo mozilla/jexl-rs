@@ -257,6 +257,18 @@ impl<'a> Evaluator<'a> {
                     .ok_or(EvaluationError::UnknownTransform(name))?;
                 f(&args_arr).map_err(|e| e.into())
             }
+
+            Expression::Conditional {
+                left,
+                truthy,
+                falsy,
+            } => {
+                if self.eval_ast(*left, context)?.is_truthy() {
+                    self.eval_ast(*truthy, context)
+                } else {
+                    self.eval_ast(*falsy, context)
+                }
+            }
         }
     }
 }
@@ -463,10 +475,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_conditional_expression() {
-        assert_eq!(Evaluator::new().eval("'foo' ? 1 : 2").unwrap(), value!(1));
-        assert_eq!(Evaluator::new().eval("'' ? 1 : 2").unwrap(), value!(2));
+        assert_eq!(
+            Evaluator::new().eval("'foo' ? 1 : 2").unwrap(),
+            value!(1f64)
+        );
+        assert_eq!(Evaluator::new().eval("'' ? 1 : 2").unwrap(), value!(2f64));
     }
 
     #[test]

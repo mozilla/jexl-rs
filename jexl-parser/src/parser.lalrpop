@@ -32,9 +32,15 @@ Expr40: Box<Expression> = {
 };
 
 Expr50: Box<Expression> = {
-    <subject: Expr50> "|" <name: Identifier> <args: Args?> => Box::new(Expression::Transform{name, subject, args}),
-    Expr60
+    <left: Expr50> "?" <truthy: Expr60> ":" <falsy: Expr60> => Box::new(Expression::Conditional {left, truthy, falsy}),
+    Expr60,
+}
+
+Expr60: Box<Expression> = {
+    <subject: Expr60> "|" <name: Identifier> <args: Args?> => Box::new(Expression::Transform{name, subject, args}),
+    Expr70
 };
+
 
 /// Expression for dereferencing.
 /// Used for dereferencing object literals, array literals, and the context
@@ -58,13 +64,13 @@ Expr50: Box<Expression> = {
 /// `foo.bar[0] == {"baz": 1}`
 /// `foo.bar[1].bobo[0] == 13`
 /// `[1, 2, 3][1] == 2`
-Expr60: Box<Expression> = {
-    <subject: Expr60> <index: Index> => Box::new(Expression::IndexOperation{subject, index}),
-    <subject: Expr60> "." <ident: Identifier>  => Box::new(Expression::DotOperation{subject, ident}),
-    Expr70
+Expr70: Box<Expression> = {
+    <subject: Expr70> <index: Index> => Box::new(Expression::IndexOperation{subject, index}),
+    <subject: Expr70> "." <ident: Identifier>  => Box::new(Expression::DotOperation{subject, ident}),
+    Expr80
 };
 
-Expr70: Box<Expression> = {
+Expr80: Box<Expression> = {
     Number => Box::new(Expression::Number(<>)),
     Boolean => Box::new(Expression::Boolean(<>)),
     String => Box::new(Expression::String(<>)),
