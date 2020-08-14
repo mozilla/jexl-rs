@@ -9,7 +9,6 @@ pub enum Expression {
     Boolean(bool),
     Array(Vec<Box<Expression>>),
     Object(Vec<(String, Box<Expression>)>),
-    IdentifierSequence(Vec<Box<Expression>>),
     BinaryOperation {
         operation: OpCode,
         left: Box<Expression>,
@@ -20,6 +19,16 @@ pub enum Expression {
         subject: Box<Expression>,
         args: Option<Vec<Box<Expression>>>,
     },
+    DotOperation {
+        subject: Box<Expression>,
+        ident: String,
+    },
+    IndexOperation {
+        subject: Box<Expression>,
+        index: Box<Expression>,
+    },
+
+    Identifier(String),
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]

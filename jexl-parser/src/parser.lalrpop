@@ -34,15 +34,43 @@ Expr40: Box<Expression> = {
 Expr50: Box<Expression> = {
     <subject: Expr50> "|" <name: Identifier> <args: Args?> => Box::new(Expression::Transform{name, subject, args}),
     Expr60
-}
+};
 
+/// Expression for dereferencing.
+/// Used for dereferencing object literals, array literals, and the context
+/// There are two types of operations here:
+/// - Either a `dot` operation, taking an expression on the left hand side, and an identifier on the right hand side (a string without the quotations)
+/// - Or an `index` operation, taking an expression on the left hand side, and another expression inside square ("[]") brackets.
+///
+/// # Examples:
+/// 
+/// Assume our context is the following
+/// ```
+///{
+///  "foo":
+///  {
+///     "bar": [{"baz": 1}, {"bobo": [13, 12]}]
+//   }
+// }
+/// ```
+///
+/// `foo.bar == [{"baz": 1}, {"bobo": [13, 12]]`
+/// `foo.bar[0] == {"baz": 1}`
+/// `foo.bar[1].bobo[0] == 13`
+/// `[1, 2, 3][1] == 2`
 Expr60: Box<Expression> = {
+    <subject: Expr60> <index: Index> => Box::new(Expression::IndexOperation{subject, index}),
+    <subject: Expr60> "." <ident: Identifier>  => Box::new(Expression::DotOperation{subject, ident}),
+    Expr70
+};
+
+Expr70: Box<Expression> = {
     Number => Box::new(Expression::Number(<>)),
     Boolean => Box::new(Expression::Boolean(<>)),
     String => Box::new(Expression::String(<>)),
     Array => Box::new(Expression::Array(<>)),
     Object => Box::new(Expression::Object(<>)),
-    IdentifierSequence => Box::new(Expression::IdentifierSequence(<>)),
+    Identifier => Box::new(Expression::Identifier(<>)),
     "(" <Expression> ")",
 };
 
@@ -92,24 +120,15 @@ String: String = {
     <s: r#"'([^'\\]*(\\')?)*'"#> => s[1..s.len() - 1].to_string().replace("\\'", "'"),
 };
 
-IdentifierSequence: Vec<Box<Expression>> = {
-    <head: Identifier> <tail: (IdentifierSequenceTailPart*)> => {
-        let mut rv = Vec::with_capacity(tail.len() + 1);
-        let mut tail = tail;
-        rv.push(Box::new(Expression::String(head)));
-        rv.append(&mut tail);
-        rv
-    }
-};
 
 Identifier: String = {
     r#"[a-zA-Z_][a-zA-Z0-9_]*"# => <>.to_string()
 }
 
-IdentifierSequenceTailPart: Box<Expression> = {
-    "." <Identifier> => Box::new(Expression::String(<>)),
-    "[" <Expression> "]",
-};
+Index: Box<Expression> = {
+    "[" <Expression> "]"
+}
+
 
 Boolean: bool = {
     "true" => true,
