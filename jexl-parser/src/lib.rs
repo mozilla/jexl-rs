@@ -93,4 +93,63 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn test_index_op_ident() {
+        let exp = "foo[0]";
+        let parsed = Parser::parse(exp).unwrap();
+        assert_eq!(
+            parsed,
+            Expression::IndexOperation {
+                subject: Box::new(Expression::Identifier("foo".to_string())),
+                index: Box::new(Expression::Number(0f64))
+            }
+        );
+    }
+
+    #[test]
+    fn test_index_op_array_literal() {
+        let exp = "[1, 2, 3][0]";
+        let parsed = Parser::parse(exp).unwrap();
+        assert_eq!(
+            parsed,
+            Expression::IndexOperation {
+                subject: Box::new(Expression::Array(vec![
+                    Box::new(Expression::Number(1f64)),
+                    Box::new(Expression::Number(2f64)),
+                    Box::new(Expression::Number(3f64)),
+                ])),
+                index: Box::new(Expression::Number(0f64))
+            }
+        );
+    }
+
+    #[test]
+    fn test_dot_op_ident() {
+        let exp = "foo.bar";
+        let parsed = Parser::parse(exp).unwrap();
+        assert_eq!(
+            parsed,
+            Expression::DotOperation {
+                subject: Box::new(Expression::Identifier("foo".to_string())),
+                ident: "bar".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_dot_op_object_literal() {
+        let exp = "{'foo': 1}.foo";
+        let parsed = Parser::parse(exp).unwrap();
+        assert_eq!(
+            parsed,
+            Expression::DotOperation {
+                subject: Box::new(Expression::Object(vec![(
+                    "foo".to_string(),
+                    Box::new(Expression::Number(1f64))
+                )])),
+                ident: "foo".to_string()
+            }
+        );
+    }
 }

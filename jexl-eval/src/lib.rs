@@ -164,23 +164,30 @@ impl<'a> Evaluator<'a> {
                 Ok(Value::Object(map))
             }
 
-            Expression::IdentifierSequence(exprs) => {
-                assert!(!exprs.is_empty());
-                let mut rv: Option<&Value> = Some(context);
-                for expr in exprs.into_iter() {
-                    let key = self.eval_ast(*expr, context)?;
-                    if let Some(value) = rv {
-                        rv = match key {
-                            Value::String(s) => value.get(&s),
-                            Value::Number(f) => value.get(f.as_f64().unwrap().floor() as usize),
-                            _ => return Err(EvaluationError::InvalidIndexType),
-                        };
-                    } else {
-                        break;
-                    }
-                }
+            Expression::Identifier(inner) => {
+                // TODO: Make this error out if the identifier does not exist in the
+                // context
+                Ok(context.get(&inner).unwrap_or(&value!(null)).clone())
+            }
 
-                Ok(rv.unwrap_or(&value!(null)).clone())
+            Expression::DotOperation { subject, ident } => {
+                let subject = self.eval_ast(*subject, context)?;
+                Ok(subject.get(&ident).unwrap_or(&value!(null)).clone())
+            }
+
+            Expression::IndexOperation { subject, index } => {
+                let subject = self.eval_ast(*subject, context)?;
+                let index = self.eval_ast(*index, context)?;
+                match index {
+                    Value::String(inner) => {
+                        Ok(subject.get(&inner).unwrap_or(&value!(null)).clone())
+                    }
+                    Value::Number(inner) => Ok(subject
+                        .get(inner.as_f64().unwrap().floor() as usize)
+                        .unwrap_or(&value!(null))
+                        .clone()),
+                    _ => Err(EvaluationError::InvalidIndexType),
+                }
             }
 
             Expression::BinaryOperation {
@@ -426,7 +433,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_array_literal_indexing() {
         assert_eq!(Evaluator::new().eval("[1, 2, 3][1]").unwrap(), value!(2.0));
     }
