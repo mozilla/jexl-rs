@@ -151,6 +151,11 @@ Array: Vec<Box<Expression>> = {
 }
 
 Object: Vec<(String, Box<Expression>)> = {
-    "{" <Comma<(<String> ":" <Expression>)>> "}",
+    "{" <Comma<(<ObjectIdentifier> ":" <Expression>)>> "}",
     "{}" => vec![],
+}
+
+ObjectIdentifier: String = {
+    String, 
+    Identifier
 }
