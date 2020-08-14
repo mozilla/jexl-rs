@@ -132,7 +132,8 @@ Identifier: String = {
 }
 
 Index: Box<Expression> = {
-    "[" <Expression> "]"
+    "[" "." <ident: Identifier> <op: Op20> <right: Expr80> "]" => Box::new(Expression::Filter {ident, op, right}),
+    "[" <Expression> "]",
 }
 
 

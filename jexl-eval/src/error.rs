@@ -29,6 +29,8 @@ pub enum EvaluationError<'a> {
     JSONError(#[from] serde_json::Error),
     #[error("Custom error: {0}")]
     CustomError(#[from] anyhow::Error),
+    #[error("Invalid filter")]
+    InvalidFilter,
 }
 
 impl<'a> From<ParseError<usize, Token<'a>, &'a str>> for EvaluationError<'a> {
