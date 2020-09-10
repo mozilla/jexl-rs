@@ -1,6 +1,6 @@
 # jexl-rs [![CircleCI](https://circleci.com/gh/mozilla/jexl-rs/tree/main.svg?style=svg)](https://circleci.com/gh/mozilla/jexl-rs/tree/main)
 
-> [JEXL](https://commons.apache.org/proper/commons-jexl/) in Rust
+> [JEXL](https://www.npmjs.com/package/jexl) in Rust
 
 
 * jexl-eval: [![](https://meritbadge.herokuapp.com/jexl-eval)](https://crates.io/crates/jexl-eval) [![](https://docs.rs/jexl-eval/badge.svg?v=2)](https://docs.rs/jexl-eval)
