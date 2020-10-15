@@ -2,4 +2,5 @@
 members = [
     "jexl-parser",
     "jexl-eval",
+    "parser-gen",
 ]

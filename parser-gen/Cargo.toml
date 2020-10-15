@@ -1,0 +1,9 @@
+[package]
+name = "parser-gen"
+version = "0.1.0"
+authors = ["Edouard Oger <eoger@fastmail.com>"]
+edition = "2018"
+license = "MPL-2.0"
+
+[dependencies]
+lalrpop = { version = "0.19", features = ["lexer"] }
