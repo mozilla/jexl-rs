@@ -3,9 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 pub mod ast;
-mod parser {
-    include!(concat!(env!("OUT_DIR"), "/parser.rs"));
-}
+#[rustfmt::skip]
+mod parser;
 
 pub use lalrpop_util::ParseError;
 
