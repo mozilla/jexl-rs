@@ -3,8 +3,8 @@
 > [JEXL](https://www.npmjs.com/package/jexl) in Rust
 
 
-* jexl-eval: [![](https://meritbadge.herokuapp.com/jexl-eval)](https://crates.io/crates/jexl-eval) [![](https://docs.rs/jexl-eval/badge.svg?v=2)](https://docs.rs/jexl-eval)
-* jexl-parser: [![](https://meritbadge.herokuapp.com/jexl-parser)](https://crates.io/crates/jexl-parser) [![](https://docs.rs/jexl-parser/badge.svg?v=2)](https://docs.rs/jexl-parser)
+* jexl-eval: [![](https://img.shields.io/crates/v/jexl-eval.svg)](https://crates.io/crates/jexl-eval) [![](https://docs.rs/jexl-eval/badge.svg?v=2)](https://docs.rs/jexl-eval)
+* jexl-parser: [![](https://img.shields.io/crates/v/jexl-parser.svg)](https://crates.io/crates/jexl-parser) [![](https://docs.rs/jexl-parser/badge.svg?v=2)](https://docs.rs/jexl-parser)
 
 ## Releases
 
