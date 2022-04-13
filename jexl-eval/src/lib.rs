@@ -57,7 +57,7 @@ impl Truthy for Value {
     fn is_truthy(&self) -> bool {
         match self {
             Value::Bool(b) => *b,
-            Value::Null => true,
+            Value::Null => false,
             Value::Number(f) => f.as_f64().unwrap() != 0.0,
             Value::String(s) => !s.is_empty(),
             // It would be better if these depended on the contents of the
@@ -261,6 +261,15 @@ impl<'a> Evaluator<'a> {
 
     fn apply_op<'b>(operation: OpCode, left: Value, right: Value) -> Result<'b, Value> {
         match (operation, left, right) {
+            (OpCode::NotEqual, a, b) => {
+                // Implement NotEquals as the inverse of Equals.
+                let value = Self::apply_op(OpCode::Equal, a, b)?;
+                let equality = value
+                    .as_bool()
+                    .unwrap_or_else(|| unreachable!("Equality always returns a bool"));
+                Ok(value!(!equality))
+            }
+
             (OpCode::And, a, b) => Ok(if a.is_truthy() { b } else { a }),
             (OpCode::Or, a, b) => Ok(if a.is_truthy() { a } else { b }),
 
@@ -280,7 +289,7 @@ impl<'a> Evaluator<'a> {
                     OpCode::LessEqual => value!(left <= right),
                     OpCode::GreaterEqual => value!(left >= right),
                     OpCode::Equal => value!((left - right).abs() < EPSILON),
-                    OpCode::NotEqual => value!((left - right).abs() > EPSILON),
+                    OpCode::NotEqual => value!((left - right).abs() >= EPSILON),
                     OpCode::In => value!(false),
                     OpCode::And | OpCode::Or => {
                         unreachable!("Covered by previous case in parent match")
@@ -288,10 +297,37 @@ impl<'a> Evaluator<'a> {
                 })
             }
 
-            (OpCode::Add, Value::String(a), Value::String(b)) => Ok(value!(format!("{}{}", a, b))),
-            (OpCode::In, Value::String(a), Value::String(b)) => Ok(value!(b.contains(&a))),
+            (op, Value::String(a), Value::String(b)) => match op {
+                OpCode::Equal => Ok(value!(a == b)),
+
+                OpCode::Add => Ok(value!(format!("{}{}", a, b))),
+                OpCode::In => Ok(value!(b.contains(&a))),
+
+                OpCode::Less => Ok(value!(a < b)),
+                OpCode::Greater => Ok(value!(a > b)),
+                OpCode::LessEqual => Ok(value!(a <= b)),
+                OpCode::GreaterEqual => Ok(value!(a >= b)),
+
+                _ => Err(EvaluationError::InvalidBinaryOp {
+                    operation,
+                    left: value!(a),
+                    right: value!(b),
+                }),
+            },
+
             (OpCode::In, left, Value::Array(v)) => Ok(value!(v.contains(&left))),
-            (OpCode::Equal, Value::String(a), Value::String(b)) => Ok(value!(a == b)),
+
+            (OpCode::Equal, a, b) => match (a, b) {
+                // Number == Number is handled above
+                // String == String is handled above
+                (Value::Bool(a), Value::Bool(b)) => Ok(value!(a == b)),
+                (Value::Null, Value::Null) => Ok(value!(true)),
+                (Value::Array(a), Value::Array(b)) => Ok(value!(a == b)),
+                (Value::Object(a), Value::Object(b)) => Ok(value!(a == b)),
+                // If the types don't match, it's always false
+                _ => Ok(value!(false)),
+            },
+
             (operation, left, right) => Err(EvaluationError::InvalidBinaryOp {
                 operation,
                 left,
@@ -650,5 +686,132 @@ mod tests {
             evaluator.eval_in_context(exp, context).unwrap(),
             value!([{"bobo": 50, "fofo": 100}, {"bobo": 60, "baz": 90}])
         );
+    }
+
+    #[test]
+    fn test_binary_equals_and_not_equals() {
+        let evaluator = Evaluator::new();
+        let context = value!({
+            "NULL": null,
+            "STRING": "string",
+            "BOOLEAN": true,
+            "NUMBER": 42,
+            "OBJECT": { "x": 1, "y": 2 },
+            "ARRAY": [ "string" ]
+        });
+
+        let test = |l: &str, r: &str, exp: bool| {
+            let expr = format!("{} == {}", l, r);
+            assert_eq!(
+                evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                value!(exp)
+            );
+
+            let expr = format!("{} != {}", l, r);
+            assert_eq!(
+                evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                value!(!exp)
+            );
+        };
+
+        test("STRING", "'string'", true);
+        test("NUMBER", "42", true);
+        test("BOOLEAN", "true", true);
+        test("NULL", "null", true);
+        test("OBJECT", "OBJECT", true);
+        test("ARRAY", "[ 'string' ]", true);
+
+        test("OBJECT", "{ 'x': 1, 'y': 2 }", false);
+
+        test("STRING", "NULL", false);
+        test("NUMBER", "NULL", false);
+        test("BOOLEAN", "NULL", false);
+        // test("NULL", "NULL", false);
+        test("OBJECT", "NULL", false);
+        test("ARRAY", "NULL", false);
+
+        // test("STRING", "STRING", false);
+        test("NUMBER", "STRING", false);
+        test("BOOLEAN", "STRING", false);
+        test("NULL", "STRING", false);
+        test("OBJECT", "STRING", false);
+        test("ARRAY", "STRING", false);
+
+        test("STRING", "NUMBER", false);
+        // test("NUMBER", "NUMBER", false);
+        test("BOOLEAN", "NUMBER", false);
+        test("NULL", "NUMBER", false);
+        test("OBJECT", "NUMBER", false);
+        test("ARRAY", "NUMBER", false);
+
+        test("STRING", "BOOLEAN", false);
+        test("NUMBER", "BOOLEAN", false);
+        // test("BOOLEAN", "BOOLEAN", false);
+        test("NULL", "BOOLEAN", false);
+        test("OBJECT", "BOOLEAN", false);
+        test("ARRAY", "BOOLEAN", false);
+
+        test("STRING", "OBJECT", false);
+        test("NUMBER", "OBJECT", false);
+        test("BOOLEAN", "OBJECT", false);
+        test("NULL", "OBJECT", false);
+        // test("OBJECT", "OBJECT", false);
+        test("ARRAY", "OBJECT", false);
+
+        test("STRING", "ARRAY", false);
+        test("NUMBER", "ARRAY", false);
+        test("BOOLEAN", "ARRAY", false);
+        test("NULL", "ARRAY", false);
+        test("OBJECT", "ARRAY", false);
+        // test("ARRAY", "ARRAY", false);
+    }
+
+    #[test]
+    fn test_binary_string_gt_lt_gte_lte() {
+        let evaluator = Evaluator::new();
+        let context = value!({
+            "A": "A string",
+            "B": "B string",
+        });
+
+        let test = |l: &str, r: &str, is_gt: bool| {
+            let expr = format!("{} > {}", l, r);
+            assert_eq!(
+                evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                value!(is_gt)
+            );
+
+            let expr = format!("{} <= {}", l, r);
+            assert_eq!(
+                evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                value!(!is_gt)
+            );
+
+            // we test equality in another test
+            let expr = format!("{} == {}", l, r);
+            let is_eq = evaluator
+                .eval_in_context(&expr, context.clone())
+                .unwrap()
+                .as_bool()
+                .unwrap();
+
+            if is_eq {
+                let expr = format!("{} >= {}", l, r);
+                assert_eq!(
+                    evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                    value!(true)
+                );
+            } else {
+                let expr = format!("{} < {}", l, r);
+                assert_eq!(
+                    evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                    value!(!is_gt)
+                );
+            }
+        };
+
+        test("A", "B", false);
+        test("B", "A", true);
+        test("A", "A", false);
     }
 }
