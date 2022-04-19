@@ -210,11 +210,7 @@ impl<'a> Evaluator<'a> {
                 left,
                 right,
                 operation,
-            } => {
-                let left = self.eval_ast(*left, context)?;
-                let right = self.eval_ast(*right, context)?;
-                Self::apply_op(operation, left, right)
-            }
+            } => self.eval_op(operation, left, right, context),
             Expression::Transform {
                 name,
                 subject,
@@ -257,6 +253,36 @@ impl<'a> Evaluator<'a> {
                 return Err(EvaluationError::InvalidFilter);
             }
         }
+    }
+
+    fn eval_op<'b>(
+        &self,
+        operation: OpCode,
+        left: Box<Expression>,
+        right: Box<Expression>,
+        context: &Context,
+    ) -> Result<'b, Value> {
+        let left = self.eval_ast(*left, context)?;
+
+        // We want to delay evaluating the right hand side in the cases of AND and OR.
+        let eval_right = || self.eval_ast(*right, context);
+        Ok(match operation {
+            OpCode::Or => {
+                if left.is_truthy() {
+                    left
+                } else {
+                    eval_right()?
+                }
+            }
+            OpCode::And => {
+                if left.is_truthy() {
+                    eval_right()?
+                } else {
+                    left
+                }
+            }
+            _ => Self::apply_op(operation, left, eval_right()?)?,
+        })
     }
 
     fn apply_op<'b>(operation: OpCode, left: Value, right: Value) -> Result<'b, Value> {
@@ -689,7 +715,7 @@ mod tests {
     }
 
     #[test]
-    fn test_binary_equals_and_not_equals() {
+    fn test_binary_op_eq_ne() {
         let evaluator = Evaluator::new();
         let context = value!({
             "NULL": null,
@@ -767,7 +793,7 @@ mod tests {
     }
 
     #[test]
-    fn test_binary_string_gt_lt_gte_lte() {
+    fn test_binary_op_string_gt_lt_gte_lte() {
         let evaluator = Evaluator::new();
         let context = value!({
             "A": "A string",
@@ -813,5 +839,43 @@ mod tests {
         test("A", "B", false);
         test("B", "A", true);
         test("A", "A", false);
+    }
+
+    #[test]
+    fn test_lazy_eval_binary_op_and_or() {
+        let evaluator = Evaluator::new();
+        // error is a missing transform
+        let res = evaluator.eval("42 || 0|error");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), value!(42.0));
+
+        let res = evaluator.eval("false || 0|error");
+        assert!(res.is_err());
+
+        let res = evaluator.eval("42 && 0|error");
+        assert!(res.is_err());
+
+        let res = evaluator.eval("false && 0|error");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), value!(false));
+    }
+
+    #[test]
+    fn test_lazy_eval_trinary_op() {
+        let evaluator = Evaluator::new();
+        // error is a missing transform
+        let res = evaluator.eval("true ? 42 : 0|error");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), value!(42.0));
+
+        let res = evaluator.eval("true ? 0|error : 42");
+        assert!(res.is_err());
+
+        let res = evaluator.eval("true ? 0|error : 42");
+        assert!(res.is_err());
+
+        let res = evaluator.eval("false ? 0|error : 42");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), value!(42.0));
     }
 }
