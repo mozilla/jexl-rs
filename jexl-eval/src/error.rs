@@ -21,6 +21,8 @@ pub enum EvaluationError<'a> {
     UnknownTransform(String),
     #[error("Duplicate object key: {0}")]
     DuplicateObjectKey(String),
+    #[error("Identifier '{0}' is undefined")]
+    UndefinedIdentifier(String),
     #[error("Invalid context provided")]
     InvalidContext,
     #[error("Invalid index type")]
