@@ -69,6 +69,15 @@ impl Truthy for Value {
     }
 }
 
+impl<'b> Truthy for Result<'b, Value> {
+    fn is_truthy(&self) -> bool {
+        match self {
+            Ok(v) => v.is_truthy(),
+            _ => false,
+        }
+    }
+}
+
 type Context = Value;
 
 /// TransformFn represents an arbitrary transform function
@@ -164,11 +173,10 @@ impl<'a> Evaluator<'a> {
                 Ok(Value::Object(map))
             }
 
-            Expression::Identifier(inner) => {
-                // TODO: Make this error out if the identifier does not exist in the
-                // context
-                Ok(context.get(&inner).unwrap_or(&value!(null)).clone())
-            }
+            Expression::Identifier(inner) => match context.get(&inner) {
+                Some(v) => Ok(v.clone()),
+                _ => Err(EvaluationError::UndefinedIdentifier(inner.clone())),
+            },
 
             Expression::DotOperation { subject, ident } => {
                 let subject = self.eval_ast(*subject, context)?;
@@ -236,7 +244,7 @@ impl<'a> Evaluator<'a> {
                 truthy,
                 falsy,
             } => {
-                if self.eval_ast(*left, context)?.is_truthy() {
+                if self.eval_ast(*left, context).is_truthy() {
                     self.eval_ast(*truthy, context)
                 } else {
                     self.eval_ast(*falsy, context)
@@ -262,14 +270,14 @@ impl<'a> Evaluator<'a> {
         right: Box<Expression>,
         context: &Context,
     ) -> Result<'b, Value> {
-        let left = self.eval_ast(*left, context)?;
+        let left = self.eval_ast(*left, context);
 
         // We want to delay evaluating the right hand side in the cases of AND and OR.
         let eval_right = || self.eval_ast(*right, context);
         Ok(match operation {
             OpCode::Or => {
                 if left.is_truthy() {
-                    left
+                    left?
                 } else {
                     eval_right()?
                 }
@@ -278,10 +286,10 @@ impl<'a> Evaluator<'a> {
                 if left.is_truthy() {
                     eval_right()?
                 } else {
-                    left
+                    left?
                 }
             }
-            _ => Self::apply_op(operation, left, eval_right()?)?,
+            _ => Self::apply_op(operation, left?, eval_right()?)?,
         })
     }
 
@@ -629,6 +637,68 @@ mod tests {
     }
 
     #[test]
+    // Test returning an UndefinedIdentifier error if an identifier is unknown
+    fn test_undefined_identifier() {
+        let err = Evaluator::new().eval("not_defined").unwrap_err();
+        if let EvaluationError::UndefinedIdentifier(id) = err {
+            assert_eq!(id, "not_defined")
+        } else {
+            panic!("Should have thrown an undefined identifier error")
+        }
+    }
+
+    #[test]
+    // Test returning an UndefinedIdentifier error if an identifier is unknown
+    fn test_undefined_identifier_truthy_ops() {
+        let err = Evaluator::new().eval("not_defined").unwrap_err();
+        if let EvaluationError::UndefinedIdentifier(id) = err {
+            assert_eq!(id, "not_defined")
+        } else {
+            panic!("Should have thrown an undefined identifier error")
+        }
+
+        let evaluator = Evaluator::new();
+        let context = value!({
+            "NULL": null,
+            "DEFINED": "string",
+        });
+
+        let test = |expr: &str, is_ok: bool, exp: Value| {
+            let obs = evaluator.eval_in_context(&expr, context.clone());
+            if !is_ok {
+                assert!(obs.is_err());
+                assert!(matches!(
+                    obs.unwrap_err(),
+                    EvaluationError::UndefinedIdentifier(_)
+                ));
+            } else {
+                assert_eq!(obs.unwrap(), exp,);
+            }
+        };
+
+        test("UNDEFINED", false, value!(null));
+        test("UNDEFINED == 'string'", false, value!(null));
+        test("'string' == UNDEFINED", false, value!(null));
+
+        test("UNDEFINED ? 'WRONG' : 'RIGHT'", true, value!("RIGHT"));
+        test("DEFINED ? UNDEFINED : 'WRONG'", false, value!(null));
+
+        test("UNDEFINED || 'RIGHT'", true, value!("RIGHT"));
+        test("'RIGHT' || UNDEFINED", true, value!("RIGHT"));
+
+        test("'WRONG' && UNDEFINED", false, value!(null));
+        test("UNDEFINED && 'WRONG'", false, value!(null));
+
+        test("UNDEFINED && 'WRONG'", false, value!(null));
+
+        test(
+            "(UNDEFINED && UNDEFINED == 'string') || (DEFINED && DEFINED == 'string')",
+            true,
+            value!(true),
+        );
+    }
+
+    #[test]
     fn test_add_multiple_transforms() {
         let evaluator = Evaluator::new()
             .with_transform("sqrt", |v: &[Value]| {
@@ -743,7 +813,6 @@ mod tests {
         test("STRING", "'string'", true);
         test("NUMBER", "42", true);
         test("BOOLEAN", "true", true);
-        test("NULL", "null", true);
         test("OBJECT", "OBJECT", true);
         test("ARRAY", "[ 'string' ]", true);
 
