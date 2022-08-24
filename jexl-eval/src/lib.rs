@@ -350,6 +350,9 @@ impl<'a> Evaluator<'a> {
             },
 
             (OpCode::In, left, Value::Array(v)) => Ok(value!(v.contains(&left))),
+            (OpCode::In, Value::String(left), Value::Object(v)) => {
+                Ok(value!(v.contains_key(&left)))
+            }
 
             (OpCode::Equal, a, b) => match (a, b) {
                 // Number == Number is handled above
@@ -566,6 +569,22 @@ mod tests {
         assert_eq!(
             Evaluator::new()
                 .eval("'baz' in ['foo', 'bar', 'tek']")
+                .unwrap(),
+            value!(false)
+        );
+    }
+
+    #[test]
+    fn test_in_operator_object() {
+        assert_eq!(
+            Evaluator::new()
+                .eval("'bar' in {foo: 1, bar: 2, tek: 3}")
+                .unwrap(),
+            value!(true)
+        );
+        assert_eq!(
+            Evaluator::new()
+                .eval("'baz' in {foo: 1, bar: 2, tek: 3}")
                 .unwrap(),
             value!(false)
         );
