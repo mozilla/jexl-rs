@@ -137,6 +137,23 @@ mod tests {
     }
 
     #[test]
+    fn test_dot_op_equality_with_null() {
+        let exp = "foo.bar == Null";
+        let parsed = Parser::parse(exp).unwrap();
+        assert_eq!(
+            parsed,
+            Expression::BinaryOperation {
+                operation: OpCode::Equal,
+                left: Box::new(Expression::DotOperation {
+                    subject: Box::new(Expression::Identifier("foo".to_string())),
+                    ident: "bar".to_string()
+                }),
+                right: Box::new(Expression::Null),
+            }
+        );
+    }
+
+    #[test]
     fn test_dot_op_object_literal() {
         let exp = "{'foo': 1}.foo";
         let parsed = Parser::parse(exp).unwrap();
@@ -150,5 +167,10 @@ mod tests {
                 ident: "foo".to_string()
             }
         );
+    }
+
+    #[test]
+    fn test_parsing_null() {
+        assert_eq!(Parser::parse("null"), Ok(Expression::Null));
     }
 }

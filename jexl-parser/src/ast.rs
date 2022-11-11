@@ -10,6 +10,7 @@ pub enum Expression {
     Array(Vec<Box<Expression>>),
     Object(Vec<(String, Box<Expression>)>),
     Identifier(String),
+    Null,
 
     BinaryOperation {
         operation: OpCode,

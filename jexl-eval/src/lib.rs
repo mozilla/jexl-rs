@@ -160,6 +160,7 @@ impl<'a> Evaluator<'a> {
             Expression::Boolean(b) => Ok(value!(b)),
             Expression::String(s) => Ok(value!(s)),
             Expression::Array(xs) => xs.into_iter().map(|x| self.eval_ast(*x, context)).collect(),
+            Expression::Null => Ok(Value::Null),
 
             Expression::Object(items) => {
                 let mut map = serde_json::Map::with_capacity(items.len());
@@ -802,7 +803,7 @@ mod tests {
             value!([{"bobo": 50, "fofo": 100}, {"bobo": 60, "baz": 90}])
         );
     }
-
+    
     #[test]
     fn test_binary_op_eq_ne() {
         let evaluator = Evaluator::new();
@@ -834,6 +835,8 @@ mod tests {
         test("BOOLEAN", "true", true);
         test("OBJECT", "OBJECT", true);
         test("ARRAY", "[ 'string' ]", true);
+        test("NULL",  "Null", true);
+        test("NULL",  "null", true);
 
         test("OBJECT", "{ 'x': 1, 'y': 2 }", false);
 
