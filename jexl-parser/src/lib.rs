@@ -138,7 +138,7 @@ mod tests {
 
     #[test]
     fn test_dot_op_equality_with_null() {
-        let exp = "foo.bar == Null";
+        let exp = "foo.bar == null";
         let parsed = Parser::parse(exp).unwrap();
         assert_eq!(
             parsed,

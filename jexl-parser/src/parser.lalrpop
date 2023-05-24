@@ -128,9 +128,7 @@ String: String = {
 };
 
 Null: Option<Box<Expression>> = {
-    "Null" => None,
     "null" => None,
-    "NULL" => None,
 }
 
 Identifier: String = {

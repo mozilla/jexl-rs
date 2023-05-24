@@ -803,7 +803,7 @@ mod tests {
             value!([{"bobo": 50, "fofo": 100}, {"bobo": 60, "baz": 90}])
         );
     }
-    
+
     #[test]
     fn test_binary_op_eq_ne() {
         let evaluator = Evaluator::new();
@@ -835,8 +835,7 @@ mod tests {
         test("BOOLEAN", "true", true);
         test("OBJECT", "OBJECT", true);
         test("ARRAY", "[ 'string' ]", true);
-        test("NULL",  "Null", true);
-        test("NULL",  "null", true);
+        test("NULL", "null", true);
 
         test("OBJECT", "{ 'x': 1, 'y': 2 }", false);
 
