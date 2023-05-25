@@ -12,6 +12,11 @@ pub enum Expression {
     Identifier(String),
     Null,
 
+    UnaryOperation {
+        operation: UnOpCode,
+        right: Box<Expression>,
+    },
+
     BinaryOperation {
         operation: OpCode,
         left: Box<Expression>,
@@ -42,6 +47,11 @@ pub enum Expression {
         op: OpCode,
         right: Box<Expression>,
     },
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum UnOpCode {
+    Negate,
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
