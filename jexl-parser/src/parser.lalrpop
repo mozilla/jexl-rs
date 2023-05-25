@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::ast::{Expression, OpCode};
+use crate::ast::{Expression, OpCode, UnOpCode};
 
 grammar;
 
@@ -49,7 +49,7 @@ Expr60: Box<Expression> = {
 /// - Or an `index` operation, taking an expression on the left hand side, and another expression inside square ("[]") brackets.
 ///
 /// # Examples:
-/// 
+///
 /// Assume our context is the following
 /// ```
 ///{
@@ -67,6 +67,7 @@ Expr60: Box<Expression> = {
 Expr70: Box<Expression> = {
     <subject: Expr70> <index: Index> => Box::new(Expression::IndexOperation{subject, index}),
     <subject: Expr70> "." <ident: Identifier>  => Box::new(Expression::DotOperation{subject, ident}),
+    <operation: Op60> <right: Expr80> => Box::new(Expression::UnaryOperation { operation, right }),
     Expr80
 };
 
@@ -114,6 +115,10 @@ Op40: OpCode = {
 Op50: OpCode = {
     "%" => OpCode::Modulus,
     "^" => OpCode::Exponent,
+};
+
+Op60: UnOpCode = {
+    "!" => UnOpCode::Negate,
 };
 
 Number: f64 = {
@@ -167,6 +172,6 @@ Object: Vec<(String, Box<Expression>)> = {
 }
 
 ObjectIdentifier: String = {
-    String, 
+    String,
     Identifier
 }
