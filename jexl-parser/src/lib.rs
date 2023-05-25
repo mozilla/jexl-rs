@@ -21,7 +21,7 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Expression, OpCode};
+    use crate::ast::{Expression, OpCode, UnOpCode};
 
     #[test]
     fn literal() {
@@ -165,6 +165,36 @@ mod tests {
                     Box::new(Expression::Number(1f64))
                 )])),
                 ident: "foo".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_simple_negation() {
+        let exp = "!false";
+        let parsed = Parser::parse(exp).unwrap();
+        assert_eq!(
+            parsed,
+            Expression::UnaryOperation {
+                operation: UnOpCode::Negate,
+                right: Box::new(Expression::Boolean(false)),
+            }
+        );
+    }
+
+    #[test]
+    fn test_negation() {
+        let exp = "! a && b";
+        let parsed = Parser::parse(exp).unwrap();
+        assert_eq!(
+            parsed,
+            Expression::BinaryOperation {
+                operation: OpCode::And,
+                left: Box::new(Expression::UnaryOperation {
+                    operation: UnOpCode::Negate,
+                    right: Box::new(Expression::Identifier("a".to_string())),
+                }),
+                right: Box::new(Expression::Identifier("b".to_string())),
             }
         );
     }

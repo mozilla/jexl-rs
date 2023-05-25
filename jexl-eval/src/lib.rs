@@ -34,7 +34,7 @@
 //!
 
 use jexl_parser::{
-    ast::{Expression, OpCode},
+    ast::{Expression, OpCode, UnOpCode},
     Parser,
 };
 use serde_json::{json as value, Value};
@@ -215,6 +215,9 @@ impl<'a> Evaluator<'a> {
                 }
             }
 
+            Expression::UnaryOperation { operation, right } => {
+                self.apply_unary_op(operation, right, context)
+            }
             Expression::BinaryOperation {
                 left,
                 right,
@@ -261,6 +264,19 @@ impl<'a> Evaluator<'a> {
                 // instead, they are evaluated as a part of an IndexOperation
                 return Err(EvaluationError::InvalidFilter);
             }
+        }
+    }
+
+    fn apply_unary_op<'b>(
+        &self,
+        operation: UnOpCode,
+        right: Box<Expression>,
+        context: &Context,
+    ) -> Result<'b, Value> {
+        let right = self.eval_ast(*right, context)?;
+
+        match operation {
+            UnOpCode::Negate => Ok(value!(!right.is_truthy())),
         }
     }
 
@@ -967,5 +983,30 @@ mod tests {
         let res = evaluator.eval("false ? 0|error : 42");
         assert!(res.is_ok());
         assert_eq!(res.unwrap(), value!(42.0));
+    }
+
+    #[test]
+    fn test_negation() {
+        let evaluator = Evaluator::new();
+
+        let res = evaluator.eval("!true");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), value!(false));
+
+        let res = evaluator.eval("!true == !(!null)");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), value!(true));
+
+        let res = evaluator.eval(r#"!(!"") != true"#);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), value!(true));
+
+        let res = evaluator.eval("!0.0 in [true]");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), value!(true));
+
+        let res = evaluator.eval("! (2 in [3, 2, 1])");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap(), value!(false));
     }
 }
