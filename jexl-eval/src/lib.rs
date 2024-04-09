@@ -146,7 +146,9 @@ impl<'a> Evaluator<'a> {
         input: &'b str,
         context: T,
     ) -> Result<'b, Value> {
-        let tree = Parser::parse(input)?;
+        // FIXME: just testing...
+        let parser = Parser::new();
+        let tree = parser.parse(input)?;
         let context = serde_json::to_value(context)?;
         if !context.is_object() {
             return Err(EvaluationError::InvalidContext);
