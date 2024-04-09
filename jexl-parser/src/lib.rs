@@ -22,8 +22,8 @@ impl Parser {
         }
     }
 
-    pub fn parse(&self, input: &str) -> Result<ast::Expression, ParseError<usize, Token, &str>> {
-        Ok(self.parser.parse(input)?)
+    pub fn parse<'a>(&'a self, input: &'a str) -> Result<ast::Expression, ParseError<usize, Token, &str>> {
+        Ok(*self.parser.parse(input)?)
     }
 }
 
