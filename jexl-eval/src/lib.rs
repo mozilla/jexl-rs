@@ -26,10 +26,12 @@
 //! For example:
 //! ```rust
 //! use jexl_eval::Evaluator;
+//! use jexl_parser::Parser;
 //! use serde_json::json as value;
+//! let parser = Parser::new();
 //! let context = value!({"a": {"b": 2.0}});
 //! let evaluator = Evaluator::new();
-//! assert_eq!(evaluator.eval_in_context("a.b", context).unwrap(), value!(2.0));
+//! assert_eq!(evaluator.eval_in_context(&parser, "a.b", context).unwrap(), value!(2.0));
 //! ```
 //!
 
@@ -138,15 +140,19 @@ impl<'a> Evaluator<'a> {
 
     pub fn eval<'b>(&self, input: &'b str) -> Result<'b, Value> {
         let context = value!({});
-        self.eval_in_context(input, &context)
+        // FIXME: we create the parser internally in eval() to minimize changes in function signatures, tests, etc.
+        // For our use case we don't use this function, but maybe makes sense to move this to function parameter
+        let parser = Parser::new();
+        self.eval_in_context(&parser, input, &context)
     }
 
     pub fn eval_in_context<'b, T: serde::Serialize>(
         &self,
+        parser: &Parser,
         input: &'b str,
         context: T,
     ) -> Result<'b, Value> {
-        let tree = Parser::parse(input)?;
+        let tree = parser.parse(input)?;
         let context = serde_json::to_value(context)?;
         if !context.is_object() {
             return Err(EvaluationError::InvalidContext);
@@ -435,24 +441,27 @@ mod tests {
 
     #[test]
     fn test_identifier() {
+        let parser = Parser::new();
         let context = value!({"a": 1.0});
         assert_eq!(
-            Evaluator::new().eval_in_context("a", context).unwrap(),
+            Evaluator::new().eval_in_context(&parser, "a", context).unwrap(),
             value!(1.0)
         );
     }
 
     #[test]
     fn test_identifier_chain() {
+        let parser = Parser::new();
         let context = value!({"a": {"b": 2.0}});
         assert_eq!(
-            Evaluator::new().eval_in_context("a.b", context).unwrap(),
+            Evaluator::new().eval_in_context(&parser, "a.b", context).unwrap(),
             value!(2.0)
         );
     }
 
     #[test]
     fn test_context_filter_arrays() {
+        let parser = Parser::new();
         let context = value!({
             "foo": {
                 "bar": [
@@ -464,7 +473,7 @@ mod tests {
         });
         assert_eq!(
             Evaluator::new()
-                .eval_in_context("foo.bar[.tek == 'baz']", &context)
+                .eval_in_context(&parser, "foo.bar[.tek == 'baz']", &context)
                 .unwrap(),
             value!([{"tek": "baz"}])
         );
@@ -472,6 +481,7 @@ mod tests {
 
     #[test]
     fn test_context_array_index() {
+        let parser = Parser::new();
         let context = value!({
             "foo": {
                 "bar": [
@@ -483,7 +493,7 @@ mod tests {
         });
         assert_eq!(
             Evaluator::new()
-                .eval_in_context("foo.bar[1].tek", context)
+                .eval_in_context(&parser, "foo.bar[1].tek", context)
                 .unwrap(),
             value!("baz")
         );
@@ -491,10 +501,11 @@ mod tests {
 
     #[test]
     fn test_object_expression_properties() {
+        let parser = Parser::new();
         let context = value!({"foo": {"baz": {"bar": "tek"}}});
         assert_eq!(
             Evaluator::new()
-                .eval_in_context("foo['ba' + 'z'].bar", &context)
+                .eval_in_context(&parser, "foo['ba' + 'z'].bar", &context)
                 .unwrap(),
             value!("tek")
         );
@@ -684,7 +695,8 @@ mod tests {
         });
 
         let test = |expr: &str, is_ok: bool, exp: Value| {
-            let obs = evaluator.eval_in_context(&expr, context.clone());
+            let parser = Parser::new();
+            let obs = evaluator.eval_in_context(&parser, &expr, context.clone());
             if !is_ok {
                 assert!(obs.is_err());
                 assert!(matches!(
@@ -789,6 +801,7 @@ mod tests {
     #[test]
     fn test_filter_collections_many_returned() {
         let evaluator = Evaluator::new();
+        let parser = Parser::new();
         let context = value!({
             "foo": [
                 {"bobo": 50, "fofo": 100},
@@ -799,7 +812,7 @@ mod tests {
         });
         let exp = "foo[.bobo >= 50]";
         assert_eq!(
-            evaluator.eval_in_context(exp, context).unwrap(),
+            evaluator.eval_in_context(&parser, exp, context).unwrap(),
             value!([{"bobo": 50, "fofo": 100}, {"bobo": 60, "baz": 90}])
         );
     }
@@ -807,6 +820,7 @@ mod tests {
     #[test]
     fn test_binary_op_eq_ne() {
         let evaluator = Evaluator::new();
+        let parser = Parser::new();
         let context = value!({
             "NULL": null,
             "STRING": "string",
@@ -819,13 +833,13 @@ mod tests {
         let test = |l: &str, r: &str, exp: bool| {
             let expr = format!("{} == {}", l, r);
             assert_eq!(
-                evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                evaluator.eval_in_context(&parser, &expr, context.clone()).unwrap(),
                 value!(exp)
             );
 
             let expr = format!("{} != {}", l, r);
             assert_eq!(
-                evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                evaluator.eval_in_context(&parser, &expr, context.clone()).unwrap(),
                 value!(!exp)
             );
         };
@@ -885,6 +899,7 @@ mod tests {
     #[test]
     fn test_binary_op_string_gt_lt_gte_lte() {
         let evaluator = Evaluator::new();
+        let parser = Parser::new();
         let context = value!({
             "A": "A string",
             "B": "B string",
@@ -893,20 +908,20 @@ mod tests {
         let test = |l: &str, r: &str, is_gt: bool| {
             let expr = format!("{} > {}", l, r);
             assert_eq!(
-                evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                evaluator.eval_in_context(&parser, &expr, context.clone()).unwrap(),
                 value!(is_gt)
             );
 
             let expr = format!("{} <= {}", l, r);
             assert_eq!(
-                evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                evaluator.eval_in_context(&parser, &expr, context.clone()).unwrap(),
                 value!(!is_gt)
             );
 
             // we test equality in another test
             let expr = format!("{} == {}", l, r);
             let is_eq = evaluator
-                .eval_in_context(&expr, context.clone())
+                .eval_in_context(&parser, &expr, context.clone())
                 .unwrap()
                 .as_bool()
                 .unwrap();
@@ -914,13 +929,13 @@ mod tests {
             if is_eq {
                 let expr = format!("{} >= {}", l, r);
                 assert_eq!(
-                    evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                    evaluator.eval_in_context(&parser, &expr, context.clone()).unwrap(),
                     value!(true)
                 );
             } else {
                 let expr = format!("{} < {}", l, r);
                 assert_eq!(
-                    evaluator.eval_in_context(&expr, context.clone()).unwrap(),
+                    evaluator.eval_in_context(&parser, &expr, context.clone()).unwrap(),
                     value!(!is_gt)
                 );
             }
