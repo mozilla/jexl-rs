@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::ast::{Expression, OpCode};
+use crate::ast::{Expression, OpCode, UnOpCode};
 
 grammar;
 
@@ -41,6 +41,11 @@ Expr60: Box<Expression> = {
     Expr70
 };
 
+Expr70: Box<Expression> = {
+    <operation: UnOp80> <right: Expr80> => Box::new(Expression::UnaryOperation { operation, right }),
+    Expr80
+}
+
 
 /// Expression for dereferencing.
 /// Used for dereferencing object literals, array literals, and the context
@@ -49,7 +54,7 @@ Expr60: Box<Expression> = {
 /// - Or an `index` operation, taking an expression on the left hand side, and another expression inside square ("[]") brackets.
 ///
 /// # Examples:
-/// 
+///
 /// Assume our context is the following
 /// ```
 ///{
@@ -64,13 +69,13 @@ Expr60: Box<Expression> = {
 /// `foo.bar[0] == {"baz": 1}`
 /// `foo.bar[1].bobo[0] == 13`
 /// `[1, 2, 3][1] == 2`
-Expr70: Box<Expression> = {
-    <subject: Expr70> <index: Index> => Box::new(Expression::IndexOperation{subject, index}),
-    <subject: Expr70> "." <ident: Identifier>  => Box::new(Expression::DotOperation{subject, ident}),
-    Expr80
+Expr80: Box<Expression> = {
+    <subject: Expr80> <index: Index> => Box::new(Expression::IndexOperation{subject, index}),
+    <subject: Expr80> "." <ident: Identifier>  => Box::new(Expression::DotOperation{subject, ident}),
+    Expr90
 };
 
-Expr80: Box<Expression> = {
+Expr90: Box<Expression> = {
     Number => Box::new(Expression::Number(<>)),
     Boolean => Box::new(Expression::Boolean(<>)),
     String => Box::new(Expression::String(<>)),
@@ -116,6 +121,10 @@ Op50: OpCode = {
     "^" => OpCode::Exponent,
 };
 
+UnOp80: UnOpCode = {
+    "!" => UnOpCode::Negate,
+};
+
 Number: f64 = {
     r"[0-9]+" => f64::from_str(<>).unwrap(),
     r"[0-9]+\.[0-9]*" => f64::from_str(<>).unwrap(),
@@ -136,7 +145,7 @@ Identifier: String = {
 }
 
 Index: Box<Expression> = {
-    "[" "." <ident: Identifier> <op: Op20> <right: Expr80> "]" => Box::new(Expression::Filter {ident, op, right}),
+    "[" "." <ident: Identifier> <op: Op20> <right: Expr90> "]" => Box::new(Expression::Filter {ident, op, right}),
     "[" <Expression> "]",
 }
 
@@ -167,6 +176,6 @@ Object: Vec<(String, Box<Expression>)> = {
 }
 
 ObjectIdentifier: String = {
-    String, 
+    String,
     Identifier
 }
