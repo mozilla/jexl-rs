@@ -47,10 +47,6 @@ const EPSILON: f64 = 0.000001f64;
 
 trait Truthy {
     fn is_truthy(&self) -> bool;
-
-    fn is_falsey(&self) -> bool {
-        !self.is_truthy()
-    }
 }
 
 impl Truthy for Value {
@@ -88,7 +84,7 @@ type Context = Value;
 ///
 /// Returns a Result with an `anyhow::Error`. This allows consumers to return their own custom errors
 /// in the closure, and use `.into` to convert it into an `anyhow::Error`. The error message will be perserved
-pub type TransformFn<'a> = Box<dyn Fn(&[Value]) -> Result<Value, anyhow::Error> + 'a>;
+pub type TransformFn<'a> = Box<dyn Fn(&[Value]) -> Result<Value, anyhow::Error> + Send + Sync + 'a>;
 
 #[derive(Default)]
 pub struct Evaluator<'a> {
@@ -129,7 +125,7 @@ impl<'a> Evaluator<'a> {
     /// ```
     pub fn with_transform<F>(mut self, name: &str, transform: F) -> Self
     where
-        F: Fn(&[Value]) -> Result<Value, anyhow::Error> + 'a,
+        F: Fn(&[Value]) -> Result<Value, anyhow::Error> + Send + Sync + 'a,
     {
         self.transforms
             .insert(name.to_string(), Box::new(transform));
