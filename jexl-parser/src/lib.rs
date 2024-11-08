@@ -10,11 +10,20 @@ pub use lalrpop_util::ParseError;
 
 pub use crate::parser::Token;
 
-pub struct Parser {}
+pub struct Parser {
+    parser: parser::ExpressionParser
+}
 
 impl Parser {
-    pub fn parse(input: &str) -> Result<ast::Expression, ParseError<usize, Token, &str>> {
-        Ok(*parser::ExpressionParser::new().parse(input)?)
+
+    pub fn new() -> Self {
+        Parser {
+            parser: parser::ExpressionParser::new()
+        }
+    }
+
+    pub fn parse<'a>(& self, input: &'a str) -> Result<ast::Expression, ParseError<usize, Token<'a>, &'static str>> {
+        Ok(*self.parser.parse(input)?)
     }
 }
 
@@ -25,13 +34,15 @@ mod tests {
 
     #[test]
     fn literal() {
-        assert_eq!(Parser::parse("1"), Ok(Expression::Number(1.0)));
+        let parser = Parser::new();
+        assert_eq!(parser.parse("1"), Ok(Expression::Number(1.0)));
     }
 
     #[test]
     fn binary_expression() {
+        let parser = Parser::new();
         assert_eq!(
-            Parser::parse("1+2"),
+            parser.parse("1+2"),
             Ok(Expression::BinaryOperation {
                 operation: OpCode::Add,
                 left: Box::new(Expression::Number(1.0)),
@@ -42,13 +53,15 @@ mod tests {
 
     #[test]
     fn binary_expression_whitespace() {
-        assert_eq!(Parser::parse("1  +     2 "), Parser::parse("1+2"),);
+        let parser = Parser::new();
+        assert_eq!(parser.parse("1  +     2 "), parser.parse("1+2"),);
     }
 
     #[test]
     fn transform_simple_no_args() {
+        let parser = Parser::new();
         let exp = "'T_T'|lower";
-        let parsed = Parser::parse(exp).unwrap();
+        let parsed = parser.parse(exp).unwrap();
         assert_eq!(
             parsed,
             Expression::Transform {
@@ -61,8 +74,9 @@ mod tests {
 
     #[test]
     fn transform_multiple_args() {
+        let parser = Parser::new();
         let exp = "'John Doe'|split(' ')";
-        let parsed = Parser::parse(exp).unwrap();
+        let parsed = parser.parse(exp).unwrap();
         assert_eq!(
             parsed,
             Expression::Transform {
@@ -75,8 +89,9 @@ mod tests {
 
     #[test]
     fn trasform_way_too_many_args() {
+        let parser = Parser::new();
         let exp = "123456|math(12, 35, 100, 31, 90)";
-        let parsed = Parser::parse(exp).unwrap();
+        let parsed = parser.parse(exp).unwrap();
         assert_eq!(
             parsed,
             Expression::Transform {
@@ -95,8 +110,9 @@ mod tests {
 
     #[test]
     fn test_index_op_ident() {
+        let parser = Parser::new();
         let exp = "foo[0]";
-        let parsed = Parser::parse(exp).unwrap();
+        let parsed = parser.parse(exp).unwrap();
         assert_eq!(
             parsed,
             Expression::IndexOperation {
@@ -108,8 +124,9 @@ mod tests {
 
     #[test]
     fn test_index_op_array_literal() {
+        let parser = Parser::new();
         let exp = "[1, 2, 3][0]";
-        let parsed = Parser::parse(exp).unwrap();
+        let parsed = parser.parse(exp).unwrap();
         assert_eq!(
             parsed,
             Expression::IndexOperation {
@@ -125,8 +142,9 @@ mod tests {
 
     #[test]
     fn test_dot_op_ident() {
+        let parser = Parser::new();
         let exp = "foo.bar";
-        let parsed = Parser::parse(exp).unwrap();
+        let parsed = parser.parse(exp).unwrap();
         assert_eq!(
             parsed,
             Expression::DotOperation {
@@ -138,8 +156,9 @@ mod tests {
 
     #[test]
     fn test_dot_op_equality_with_null() {
+        let parser = Parser::new();
         let exp = "foo.bar == null";
-        let parsed = Parser::parse(exp).unwrap();
+        let parsed = parser.parse(exp).unwrap();
         assert_eq!(
             parsed,
             Expression::BinaryOperation {
@@ -155,8 +174,9 @@ mod tests {
 
     #[test]
     fn test_dot_op_object_literal() {
+        let parser = Parser::new();
         let exp = "{'foo': 1}.foo";
-        let parsed = Parser::parse(exp).unwrap();
+        let parsed = parser.parse(exp).unwrap();
         assert_eq!(
             parsed,
             Expression::DotOperation {
@@ -171,6 +191,7 @@ mod tests {
 
     #[test]
     fn test_parsing_null() {
-        assert_eq!(Parser::parse("null"), Ok(Expression::Null));
+        let parser = Parser::new();
+        assert_eq!(parser.parse("null"), Ok(Expression::Null));
     }
 }
