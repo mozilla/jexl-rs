@@ -163,7 +163,6 @@ Array: Vec<Box<Expression>> = {
 
 Object: Vec<(String, Box<Expression>)> = {
     "{" <Comma<(<ObjectIdentifier> ":" <Expression>)>> "}",
-    "{}" => vec![],
 }
 
 ObjectIdentifier: String = {
