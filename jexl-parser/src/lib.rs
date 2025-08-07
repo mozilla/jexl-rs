@@ -173,4 +173,14 @@ mod tests {
     fn test_parsing_null() {
         assert_eq!(Parser::parse("null"), Ok(Expression::Null));
     }
+
+    #[test]
+    fn test_empty_object_literal() {
+        let exp = "{}";
+        let parsed = Parser::parse(exp).unwrap();
+        assert_eq!(
+            parsed,
+            Expression::Object(vec![])
+        );
+    }
 }
