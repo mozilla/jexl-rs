@@ -7,8 +7,8 @@ pub mod lexer;
 #[rustfmt::skip]
 mod parser;
 
+pub use crate::lexer::{LexError, Token};
 pub use lalrpop_util::ParseError;
-pub use crate::lexer::{Token, LexError};
 
 pub struct Parser {}
 
@@ -179,9 +179,6 @@ mod tests {
     fn test_empty_object_literal() {
         let exp = "{}";
         let parsed = Parser::parse(exp).unwrap();
-        assert_eq!(
-            parsed,
-            Expression::Object(vec![])
-        );
+        assert_eq!(parsed, Expression::Object(vec![]));
     }
 }

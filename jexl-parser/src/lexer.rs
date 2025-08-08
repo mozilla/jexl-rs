@@ -15,7 +15,7 @@ pub enum Token<'input> {
     Boolean(bool),
     Null,
     Identifier(&'input str),
-    
+
     // Operators
     Plus,
     Minus,
@@ -24,7 +24,7 @@ pub enum Token<'input> {
     FloorDivide,
     Modulus,
     Exponent,
-    
+
     // Comparison
     Equal,
     NotEqual,
@@ -33,11 +33,11 @@ pub enum Token<'input> {
     Less,
     LessEqual,
     In,
-    
+
     // Logical
     And,
     Or,
-    
+
     // Punctuation
     LeftParen,
     RightParen,
@@ -50,10 +50,9 @@ pub enum Token<'input> {
     Colon,
     Question,
     Pipe,
-    
+
     // Whitespace (usually ignored)
     Whitespace,
-    
     // End of input is handled automatically by lalrpop
 }
 
@@ -115,7 +114,11 @@ pub struct LexError {
 
 impl fmt::Display for LexError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Lexical error at line {}, column {}: {}", self.line, self.column, self.message)
+        write!(
+            f,
+            "Lexical error at line {}, column {}: {}",
+            self.line, self.column, self.message
+        )
     }
 }
 
@@ -138,12 +141,12 @@ impl<'input> Iterator for Lexer<'input> {
     fn next(&mut self) -> Option<Self::Item> {
         // Skip whitespace first
         self.skip_whitespace();
-        
+
         // Check if we've reached the end after skipping whitespace
         if self.is_at_end() {
             return None;
         }
-        
+
         let start_pos = self.position;
         match self.next_token_after_whitespace() {
             Ok(token) => Some(Ok((start_pos, token, self.position))),
@@ -156,23 +159,65 @@ impl<'input> Lexer<'input> {
     fn next_token_after_whitespace(&mut self) -> Result<Token<'input>, LexError> {
         // Whitespace has already been skipped by the caller
         let ch = self.current_char();
-        
+
         match ch {
             // Single-character tokens
-            '+' => { self.advance(); Ok(Token::Plus) }
-            '-' => { self.advance(); Ok(Token::Minus) }
-            '*' => { self.advance(); Ok(Token::Multiply) }
-            '%' => { self.advance(); Ok(Token::Modulus) }
-            '^' => { self.advance(); Ok(Token::Exponent) }
-            '(' => { self.advance(); Ok(Token::LeftParen) }
-            ')' => { self.advance(); Ok(Token::RightParen) }
-            '[' => { self.advance(); Ok(Token::LeftBracket) }
-            ']' => { self.advance(); Ok(Token::RightBracket) }
-            '{' => { self.advance(); Ok(Token::LeftBrace) }
-            '}' => { self.advance(); Ok(Token::RightBrace) }
-            ',' => { self.advance(); Ok(Token::Comma) }
-            ':' => { self.advance(); Ok(Token::Colon) }
-            '?' => { self.advance(); Ok(Token::Question) }
+            '+' => {
+                self.advance();
+                Ok(Token::Plus)
+            }
+            '-' => {
+                self.advance();
+                Ok(Token::Minus)
+            }
+            '*' => {
+                self.advance();
+                Ok(Token::Multiply)
+            }
+            '%' => {
+                self.advance();
+                Ok(Token::Modulus)
+            }
+            '^' => {
+                self.advance();
+                Ok(Token::Exponent)
+            }
+            '(' => {
+                self.advance();
+                Ok(Token::LeftParen)
+            }
+            ')' => {
+                self.advance();
+                Ok(Token::RightParen)
+            }
+            '[' => {
+                self.advance();
+                Ok(Token::LeftBracket)
+            }
+            ']' => {
+                self.advance();
+                Ok(Token::RightBracket)
+            }
+            '{' => {
+                self.advance();
+                Ok(Token::LeftBrace)
+            }
+            '}' => {
+                self.advance();
+                Ok(Token::RightBrace)
+            }
+            ',' => {
+                self.advance();
+                Ok(Token::Comma)
+            }
+            ':' => {
+                self.advance();
+                Ok(Token::Colon)
+            }
+            '?' => {
+                self.advance();
+                Ok(Token::Question)
+            }
             '|' => {
                 self.advance();
                 if self.current_char() == '|' {
@@ -182,7 +227,7 @@ impl<'input> Lexer<'input> {
                     Ok(Token::Pipe)
                 }
             }
-            
+
             // Multi-character tokens
             '/' => {
                 self.advance();
@@ -193,7 +238,7 @@ impl<'input> Lexer<'input> {
                     Ok(Token::Divide)
                 }
             }
-            
+
             '=' => {
                 self.advance();
                 if self.current_char() == '=' {
@@ -207,7 +252,7 @@ impl<'input> Lexer<'input> {
                     })
                 }
             }
-            
+
             '!' => {
                 self.advance();
                 if self.current_char() == '=' {
@@ -221,7 +266,7 @@ impl<'input> Lexer<'input> {
                     })
                 }
             }
-            
+
             '>' => {
                 self.advance();
                 if self.current_char() == '=' {
@@ -231,7 +276,7 @@ impl<'input> Lexer<'input> {
                     Ok(Token::Greater)
                 }
             }
-            
+
             '<' => {
                 self.advance();
                 if self.current_char() == '=' {
@@ -241,7 +286,7 @@ impl<'input> Lexer<'input> {
                     Ok(Token::Less)
                 }
             }
-            
+
             '&' => {
                 self.advance();
                 if self.current_char() == '&' {
@@ -255,14 +300,14 @@ impl<'input> Lexer<'input> {
                     })
                 }
             }
-            
+
             // String literals
             '"' => self.scan_double_quoted_string(),
             '\'' => self.scan_single_quoted_string(),
-            
+
             // Numbers
             c if c.is_ascii_digit() => self.scan_number(),
-            
+
             // Handle numbers starting with a dot (like .89)
             '.' => {
                 if self.position + 1 < self.input.len() {
@@ -270,36 +315,34 @@ impl<'input> Lexer<'input> {
                     if next_char.is_ascii_digit() {
                         self.scan_number()
                     } else {
-                        self.advance(); 
+                        self.advance();
                         Ok(Token::Dot)
                     }
                 } else {
-                    self.advance(); 
+                    self.advance();
                     Ok(Token::Dot)
                 }
             }
-            
+
             // Identifiers and keywords
             c if c.is_alphabetic() || c == '_' => self.scan_identifier(),
-            
-            _ => {
-                Err(LexError {
-                    message: format!("Unexpected character '{}'", ch),
-                    line: self.line,
-                    column: self.column,
-                })
-            }
+
+            _ => Err(LexError {
+                message: format!("Unexpected character '{}'", ch),
+                line: self.line,
+                column: self.column,
+            }),
         }
     }
-    
+
     fn scan_double_quoted_string(&mut self) -> Result<Token<'input>, LexError> {
         self.advance(); // consume opening quote
         let start_pos = self.position;
-        
+
         // Match pattern: ([^"\\]*(\\")?)*
         while !self.is_at_end() {
             let ch = self.current_char();
-            
+
             if ch == '"' {
                 // End of string
                 let end_pos = self.position;
@@ -322,7 +365,7 @@ impl<'input> Lexer<'input> {
                 self.advance();
             }
         }
-        
+
         Err(LexError {
             message: "Unterminated string literal".to_string(),
             line: self.line,
@@ -333,11 +376,11 @@ impl<'input> Lexer<'input> {
     fn scan_single_quoted_string(&mut self) -> Result<Token<'input>, LexError> {
         self.advance(); // consume opening quote
         let start_pos = self.position;
-        
+
         // Match pattern: ([^'\\]*(\\')?)*
         while !self.is_at_end() {
             let ch = self.current_char();
-            
+
             if ch == '\'' {
                 // End of string
                 let end_pos = self.position;
@@ -360,35 +403,38 @@ impl<'input> Lexer<'input> {
                 self.advance();
             }
         }
-        
+
         Err(LexError {
             message: "Unterminated string literal".to_string(),
             line: self.line,
             column: self.column,
         })
     }
-    
+
     fn scan_number(&mut self) -> Result<Token<'input>, LexError> {
         let start_pos = self.position;
-        
+
         // Handle numbers starting with a dot
         if self.current_char() == '.' {
             self.advance();
         }
-        
+
         // Scan digits (either integer part or fractional part)
         while !self.is_at_end() && self.current_char().is_ascii_digit() {
             self.advance();
         }
-        
+
         // Check for decimal point (only if we didn't start with one)
-        if !&self.input[start_pos..self.position].starts_with('.') && !self.is_at_end() && self.current_char() == '.' {
+        if !&self.input[start_pos..self.position].starts_with('.')
+            && !self.is_at_end()
+            && self.current_char() == '.'
+        {
             // Look ahead to see if there's a digit after the dot
             if self.position + 1 < self.input.len() {
                 let next_char = self.input.chars().nth(self.position + 1).unwrap_or('\0');
                 if next_char.is_ascii_digit() {
                     self.advance(); // consume dot
-                    
+
                     // Scan fractional part
                     while !self.is_at_end() && self.current_char().is_ascii_digit() {
                         self.advance();
@@ -396,7 +442,7 @@ impl<'input> Lexer<'input> {
                 }
             }
         }
-        
+
         let number_str = &self.input[start_pos..self.position];
         match number_str.parse::<f64>() {
             Ok(num) => Ok(Token::Number(num)),
@@ -404,13 +450,13 @@ impl<'input> Lexer<'input> {
                 message: format!("Invalid number format: {}", number_str),
                 line: self.line,
                 column: self.column,
-            })
+            }),
         }
     }
-    
+
     fn scan_identifier(&mut self) -> Result<Token<'input>, LexError> {
         let start_pos = self.position;
-        
+
         while !self.is_at_end() {
             let ch = self.current_char();
             if ch.is_alphanumeric() || ch == '_' {
@@ -419,9 +465,9 @@ impl<'input> Lexer<'input> {
                 break;
             }
         }
-        
+
         let identifier = &self.input[start_pos..self.position];
-        
+
         // Check for keywords
         let token = match identifier {
             "true" => Token::Boolean(true),
@@ -430,10 +476,10 @@ impl<'input> Lexer<'input> {
             "in" => Token::In,
             _ => Token::Identifier(identifier),
         };
-        
+
         Ok(token)
     }
-    
+
     fn skip_whitespace(&mut self) {
         while !self.is_at_end() && self.current_char().is_whitespace() {
             if self.current_char() == '\n' {
@@ -445,18 +491,18 @@ impl<'input> Lexer<'input> {
             self.advance();
         }
     }
-    
+
     fn current_char(&self) -> char {
         self.input.chars().nth(self.position).unwrap_or('\0')
     }
-    
+
     fn advance(&mut self) {
         if !self.is_at_end() {
             self.position += 1;
             self.column += 1;
         }
     }
-    
+
     fn is_at_end(&self) -> bool {
         self.position >= self.input.len()
     }
@@ -471,16 +517,16 @@ mod tests {
         let lexer = Lexer::new("+ - * / % ^");
         let tokens: Result<Vec<_>, _> = lexer.collect();
         let tokens = tokens.unwrap();
-        
+
         let expected_tokens = vec![
             Token::Plus,
-            Token::Minus, 
+            Token::Minus,
             Token::Multiply,
             Token::Divide,
             Token::Modulus,
             Token::Exponent,
         ];
-        
+
         let actual_tokens: Vec<Token> = tokens.into_iter().map(|(_, token, _)| token).collect();
         assert_eq!(actual_tokens, expected_tokens);
     }
@@ -490,13 +536,13 @@ mod tests {
         let lexer = Lexer::new("123 45.67 .89");
         let tokens: Result<Vec<_>, _> = lexer.collect();
         let tokens = tokens.unwrap();
-        
+
         let expected_tokens = vec![
             Token::Number(123.0),
             Token::Number(45.67),
             Token::Number(0.89),
         ];
-        
+
         let actual_tokens: Vec<Token> = tokens.into_iter().map(|(_, token, _)| token).collect();
         assert_eq!(actual_tokens, expected_tokens);
     }
@@ -506,12 +552,12 @@ mod tests {
         let lexer = Lexer::new(r#""hello" 'world'"#);
         let tokens: Result<Vec<_>, _> = lexer.collect();
         let tokens = tokens.unwrap();
-        
+
         let expected_tokens = vec![
             Token::DoubleQuotedString("hello"),
             Token::SingleQuotedString("world"),
         ];
-        
+
         let actual_tokens: Vec<Token> = tokens.into_iter().map(|(_, token, _)| token).collect();
         assert_eq!(actual_tokens, expected_tokens);
     }
@@ -521,7 +567,7 @@ mod tests {
         let lexer = Lexer::new("foo true false null in");
         let tokens: Result<Vec<_>, _> = lexer.collect();
         let tokens = tokens.unwrap();
-        
+
         let expected_tokens = vec![
             Token::Identifier("foo"),
             Token::Boolean(true),
@@ -529,7 +575,7 @@ mod tests {
             Token::Null,
             Token::In,
         ];
-        
+
         let actual_tokens: Vec<Token> = tokens.into_iter().map(|(_, token, _)| token).collect();
         assert_eq!(actual_tokens, expected_tokens);
     }
@@ -539,7 +585,7 @@ mod tests {
         let lexer = Lexer::new("foo.bar[0] == 'test' && (x > 1)");
         let tokens: Result<Vec<_>, _> = lexer.collect();
         let tokens = tokens.unwrap();
-        
+
         let expected_tokens = vec![
             Token::Identifier("foo"),
             Token::Dot,
@@ -556,7 +602,7 @@ mod tests {
             Token::Number(1.0),
             Token::RightParen,
         ];
-        
+
         let actual_tokens: Vec<Token> = tokens.into_iter().map(|(_, token, _)| token).collect();
         assert_eq!(actual_tokens, expected_tokens);
     }
