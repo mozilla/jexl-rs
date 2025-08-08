@@ -1,6 +1,6 @@
 [package]
 name = "parser-gen"
-version = "0.4.0"
+version = "0.4.1-alpha.1"
 authors = ["Edouard Oger <eoger@fastmail.com>"]
 edition = "2018"
 license = "MPL-2.0"
